@@ -1073,36 +1073,6 @@ async function fetchCarburants() {
   }
 }
 
-    // Filtrer dans un rayon de 20 km
-    const stations = d.results
-      .filter(s => s.latitude && s.longitude)
-      .map(s => ({
-        ...s,
-        dist: distanceKm(LAT, LON, parseFloat(s.latitude), parseFloat(s.longitude))
-      }))
-      .filter(s => s.dist <= 20);
-
-    if (stations.length === 0) return null;
-
-    // Pour chaque carburant, trouver la station la moins chère
-    const meilleures = {};
-    for (const cfg of CARBURANTS_CONFIG) {
-      const disponibles = stations.filter(s => s[cfg.champ] && parseFloat(s[cfg.champ]) > 0);
-      if (disponibles.length === 0) continue;
-      const best = disponibles.reduce((a, b) => parseFloat(a[cfg.champ]) < parseFloat(b[cfg.champ]) ? a : b);
-      meilleures[cfg.label] = {
-        prix: parseFloat(best[cfg.champ]).toFixed(3),
-        ville: best.ville || best.cp,
-        dist: Math.round(best.dist),
-        emoji: cfg.emoji
-      };
-    }
-    return meilleures;
-  } catch(e) {
-    return null;
-  }
-}
-
 // ─── Météo ────────────────────────────────────────────────────────────────────
 async function fetchMeteo() {
   try {
