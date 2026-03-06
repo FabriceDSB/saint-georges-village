@@ -1014,14 +1014,6 @@ function getPoubellesInfo() {
 }
 
 // ─── Carburants ───────────────────────────────────────────────────────────────
-const CARBURANTS_CONFIG = [
-  { champ: "sp95_prix",  label: "SP95",  emoji: "🔵" },
-  { champ: "sp98_prix",  label: "SP98",  emoji: "🟣" },
-  { champ: "e10_prix",   label: "E10",   emoji: "🟢" },
-  { champ: "e85_prix",   label: "E85",   emoji: "🌿" },
-  { champ: "gazole_prix",label: "Gazole",emoji: "🟡" },
-  { champ: "gplc_prix",  label: "GPL",   emoji: "⚪" },
-];
 
 function distanceKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -1033,12 +1025,57 @@ function distanceKm(lat1, lon1, lat2, lon2) {
 
 async function fetchCarburants() {
   try {
-    // On passe par un proxy CORS pour contourner les restrictions navigateur
-    const apiUrl = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=dep_code%20in%20(%2235%22%2C%2250%22%2C%2253%22%2C%2261%22)&limit=100&select=id,adresse,ville,cp,latitude,longitude,sp95_prix,sp98_prix,e10_prix,e85_prix,gazole_prix,gplc_prix`;
-    const proxy = `https://corsproxy.io/?url=${encodeURIComponent(apiUrl)}`;
-    const r = await fetch(proxy);
-    const d = await r.json();
-    if (!d.results) return null;
+    // API prix-carburants.2aaz.fr — basée sur données officielles, compatible CORS, recherche par GPS
+    const carburantsResult = {};
+
+    const configs = [
+      { code: "SP95",  label: "SP95",   emoji: "🔵" },
+      { code: "SP98",  label: "SP98",   emoji: "🟣" },
+      { code: "E10",   label: "E10",    emoji: "🟢" },
+      { code: "E85",   label: "E85",    emoji: "🌿" },
+      { code: "Gazole",label: "Gazole", emoji: "🟡" },
+      { code: "GPLc",  label: "GPL",    emoji: "⚪" },
+    ];
+
+    // Une seule requête pour toutes les stations dans le rayon
+    const url = `https://prix-carburants.2aaz.fr/stations/around/${LAT}/${LON}?range=20000`;
+    const r = await fetch(url, { headers: { "Accept": "application/json" } });
+    if (!r.ok) throw new Error("API indisponible");
+    const stations = await r.json();
+    if (!stations || stations.length === 0) return null;
+
+    for (const cfg of configs) {
+      // Filtrer les stations ayant ce carburant avec un prix valide
+      const dispo = stations.filter(s => {
+        const fuel = s.fuels && s.fuels.find(f => f.name === cfg.code);
+        return fuel && fuel.price && fuel.price > 0;
+      });
+      if (dispo.length === 0) continue;
+
+      // Trouver la moins chère
+      const best = dispo.reduce((a, b) => {
+        const pa = a.fuels.find(f => f.name === cfg.code).price;
+        const pb = b.fuels.find(f => f.name === cfg.code).price;
+        return pa < pb ? a : b;
+      });
+
+      const fuel = best.fuels.find(f => f.name === cfg.code);
+      const dist = distanceKm(LAT, LON, best.coordinates?.latitude || best.lat, best.coordinates?.longitude || best.lng);
+
+      carburantsResult[cfg.label] = {
+        prix: parseFloat(fuel.price).toFixed(3),
+        ville: best.address?.city || best.city || best.cp || "–",
+        dist: Math.round(dist),
+        emoji: cfg.emoji
+      };
+    }
+
+    return Object.keys(carburantsResult).length > 0 ? carburantsResult : null;
+  } catch(e) {
+    console.error("Erreur carburants:", e);
+    return null;
+  }
+}
 
     // Filtrer dans un rayon de 20 km
     const stations = d.results
