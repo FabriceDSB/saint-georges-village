@@ -1025,17 +1025,23 @@ function distanceKm(lat1, lon1, lat2, lon2) {
 
 async function fetchCarburants() {
   try {
-    // API officielle gouvernementale - fonctionne depuis GitHub Pages (HTTPS)
-    const apiUrl = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=dep_code%20in%20(%2235%22%2C%2250%22%2C%2253%22%2C%2261%22)&limit=100&select=id,adresse,ville,cp,latitude,longitude,sp95_prix,sp98_prix,e10_prix,e85_prix,gazole_prix,gplc_prix&timezone=Europe%2FParis`;
+    // Export CSV de l'API officielle — meilleure compatibilité CORS
+    const apiUrl = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/exports/csv?where=dep_code%20in%20(%2235%22%2C%2250%22%2C%2253%22%2C%2261%22)&select=adresse%2Cville%2Ccp%2Clatitude%2Clongitude%2Csp95_prix%2Csp98_prix%2Ce10_prix%2Ce85_prix%2Cgazole_prix%2Cgplc_prix&limit=200&timezone=Europe%2FParis&delimiter=%3B`;
 
-    const r = await fetch(apiUrl);
+    const r = await fetch(apiUrl, { mode: 'cors' });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const d = await r.json();
-    if (!d.results || d.results.length === 0) return null;
+    const text = await r.text();
+    const lines = text.trim().split('\n');
+    if (lines.length < 2) return null;
 
-    // Filtrer dans un rayon de 20 km
-    const stations = d.results
-      .filter(s => s.latitude && s.longitude)
+    const headers = lines[0].split(';').map(h => h.trim().replace(/"/g, ''));
+
+    const stations = lines.slice(1).map(line => {
+      const vals = line.split(';').map(v => v.trim().replace(/"/g, ''));
+      const obj = {};
+      headers.forEach((h, i) => obj[h] = vals[i]);
+      return obj;
+    }).filter(s => s.latitude && s.longitude)
       .map(s => ({
         ...s,
         dist: distanceKm(LAT, LON, parseFloat(s.latitude), parseFloat(s.longitude))
@@ -1044,7 +1050,6 @@ async function fetchCarburants() {
 
     if (stations.length === 0) return null;
 
-    // Pour chaque carburant, trouver la station la moins chère
     const configs = [
       { champ: "sp95_prix",  label: "SP95",   emoji: "🔵" },
       { champ: "sp98_prix",  label: "SP98",   emoji: "🟣" },
@@ -1056,11 +1061,13 @@ async function fetchCarburants() {
 
     const meilleures = {};
     for (const cfg of configs) {
-      const dispo = stations.filter(s => s[cfg.champ] && parseFloat(s[cfg.champ]) > 0);
+      const dispo = stations.filter(s => s[cfg.champ] && parseFloat(s[cfg.champ].replace(',','.')) > 0);
       if (dispo.length === 0) continue;
-      const best = dispo.reduce((a, b) => parseFloat(a[cfg.champ]) < parseFloat(b[cfg.champ]) ? a : b);
+      const best = dispo.reduce((a, b) =>
+        parseFloat(a[cfg.champ].replace(',','.')) < parseFloat(b[cfg.champ].replace(',','.')) ? a : b
+      );
       meilleures[cfg.label] = {
-        prix: parseFloat(best[cfg.champ]).toFixed(3),
+        prix: parseFloat(best[cfg.champ].replace(',','.')).toFixed(3),
         ville: best.ville || best.cp || "–",
         dist: Math.round(best.dist),
         emoji: cfg.emoji
