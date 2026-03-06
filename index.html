@@ -1038,10 +1038,12 @@ async function fetchCarburants() {
 
     const stations = d.results
       .filter(s => s.latitude && s.longitude)
-      .map(s => ({
-        ...s,
-        dist: distanceKm(LAT, LON, parseFloat(s.latitude), parseFloat(s.longitude))
-      }))
+      .map(s => {
+        // Les coordonnées sont en PTV_GEODECIMAL — diviser par 100000 pour obtenir le GPS standard
+        const lat = parseFloat(s.latitude) / 100000;
+        const lon = parseFloat(s.longitude) / 100000;
+        return { ...s, lat, lon, dist: distanceKm(LAT, LON, lat, lon) };
+      })
       .filter(s => s.dist <= 20);
 
     if (stations.length === 0) return null;
