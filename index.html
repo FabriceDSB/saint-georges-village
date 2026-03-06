@@ -1025,9 +1025,9 @@ function distanceKm(lat1, lon1, lat2, lon2) {
 
 async function fetchCarburants() {
   try {
-    const apiUrl = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=dep_code%20in%20(%2235%22%2C%2250%22%2C%2253%22%2C%2261%22)&limit=100&select=adresse,ville,cp,latitude,longitude,sp95_prix,sp98_prix,e10_prix,e85_prix,gazole_prix,gplc_prix&timezone=Europe%2FParis`;
+    // Recherche par distance GPS directement — évite les problèmes de filtre dep_code
+    const apiUrl = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=dist(geom%2C%20geom'POINT(${LON}%20${LAT})'%2C%2020km)&limit=100&select=adresse%2Cville%2Ccp%2Clatitude%2Clongitude%2Csp95_prix%2Csp98_prix%2Ce10_prix%2Ce85_prix%2Cgazole_prix%2Cgplc_prix&timezone=Europe%2FParis`;
 
-    // Proxy allorigins.win — très fiable pour contourner le CORS
     const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`;
 
     const r = await fetch(proxyUrl);
