@@ -1028,7 +1028,7 @@ async function fetchCarburants() {
     // Recherche par distance GPS directement — évite les problèmes de filtre dep_code
     // Appel direct à l'API gouvernementale — supporte CORS depuis HTTPS
     const where = encodeURIComponent(`distance(geom, geom'POINT(${LON} ${LAT})', 20km)`);
-    const apiUrl = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=${where}&limit=100&select=adresse,nom,ville,cp,latitude,longitude,sp95_prix,sp98_prix,e10_prix,e85_prix,gazole_prix,gplc_prix`;
+    const apiUrl = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=${where}&limit=100&select=adresse,ville,cp,latitude,longitude,sp95_prix,sp98_prix,e10_prix,e85_prix,gazole_prix,gplc_prix`;
 
     let d = null;
     try {
@@ -1081,7 +1081,6 @@ async function fetchCarburants() {
       );
       meilleures[cfg.label] = {
         prix: parseFloat(best[cfg.champ]).toFixed(3),
-        nom: best.nom || null,
         ville: best.ville || best.cp || "–",
         dist: Math.round(best.dist),
         emoji: cfg.emoji
@@ -1202,8 +1201,7 @@ function buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation
   if (carburants && Object.keys(carburants).length > 0) {
     lines.push(`⛽ Carburants les moins chers (rayon 20 km) :`);
     for (const [label, info] of Object.entries(carburants)) {
-      const station = info.nom ? `${info.nom} — ${info.ville}` : info.ville;
-      lines.push(`${info.emoji} ${label} — ${info.prix}€/L  📍 ${station} (${info.dist} km)`);
+      lines.push(`${info.emoji} ${label} — ${info.prix}€/L  📍 ${info.ville} (${info.dist} km)`);
     }
     lines.push(``);
   }
@@ -1258,10 +1256,9 @@ async function loadAll() {
   document.getElementById("soleil-val").textContent = `🌅 Lever : ${soleil.lever}  •  🌇 Coucher : ${soleil.coucher}`;
 
   if (carburants && Object.keys(carburants).length > 0) {
-    const lines = Object.entries(carburants).map(([label, info]) => {
-      const station = info.nom ? `${info.nom} — ${info.ville}` : info.ville;
-      return `${info.emoji} ${label} — ${info.prix}€/L — ${station} (${info.dist} km)`;
-    });
+    const lines = Object.entries(carburants).map(([label, info]) =>
+      `${info.emoji} ${label} — ${info.prix}€/L — ${info.ville} (${info.dist} km)`
+    );
     document.getElementById("carburant-val").innerHTML = lines.join("<br>");
   } else {
     document.getElementById("carburant-val").textContent = "Données indisponibles";
