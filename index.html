@@ -6,6 +6,7 @@
 <title>Post Quotidien — Saint-Georges-de-Reintembault</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
 <style>
   :root {
     --vert: #2d5a27;
@@ -1222,41 +1223,53 @@ async function captureImage() {
   btn.disabled = true;
 
   try {
+    // Attend que TOUTES les polices soient chargées dans la page
+    await document.fonts.ready;
+
+    // Petit délai supplémentaire pour les emojis et les images de fond
+    await new Promise(r => setTimeout(r, 400));
+
     const card = document.querySelector(".card");
+
     const canvas = await html2canvas(card, {
-      scale: 2, // haute résolution
+      scale: 2,
       useCORS: true,
+      allowTaint: true,
       backgroundColor: "#f5f0e8",
       logging: false,
+      // Force html2canvas à ne pas utiliser foreignObject (meilleure compat iOS)
+      foreignObjectRendering: false,
+      removeContainer: true,
     });
 
-    // Sur iPhone/mobile : ouvre l'image dans un nouvel onglet pour enregistrer/partager
-    const imgData = canvas.toDataURL("image/png");
+    const fname = `saint-georges-${new Date().toISOString().slice(0,10)}.png`;
 
-    if (navigator.share && navigator.canShare) {
-      // Web Share API — fonctionne sur iPhone Safari
-      canvas.toBlob(async (blob) => {
-        const file = new File([blob], `saint-georges-${new Date().toISOString().slice(0,10)}.png`, { type: "image/png" });
+    canvas.toBlob(async (blob) => {
+      if (navigator.share) {
         try {
-          await navigator.share({
-            files: [file],
-            title: "Post du jour — Saint-Georges-de-Reintembault",
-          });
+          const file = new File([blob], fname, { type: "image/png" });
+          await navigator.share({ files: [file], title: "Post du jour — Saint-Georges" });
         } catch(e) {
-          // Si share annulé, ouvrir dans nouvel onglet
-          window.open(imgData, "_blank");
+          // Annulé → ouvre dans un onglet pour enregistrer manuellement
+          const imgUrl = URL.createObjectURL(blob);
+          window.open(imgUrl, "_blank");
         }
-      }, "image/png");
-    } else {
-      // Sur PC : ouvre l'image dans un nouvel onglet
-      window.open(imgData, "_blank");
-    }
-  } catch(e) {
-    alert("Erreur lors de la capture. Essaie d'actualiser la page.");
-  }
+      } else {
+        // PC : télécharge directement
+        const imgUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = imgUrl; a.download = fname; a.click();
+      }
+      btn.innerHTML = "<span>📸</span> Partager en image";
+      btn.disabled = false;
+    }, "image/png");
 
-  btn.innerHTML = "<span>📸</span> Partager en image";
-  btn.disabled = false;
+  } catch(e) {
+    console.error(e);
+    alert("Erreur : " + e.message);
+    btn.innerHTML = "<span>📸</span> Partager en image";
+    btn.disabled = false;
+  }
 }
 
 async function loadAll() {
