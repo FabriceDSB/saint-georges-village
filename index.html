@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Post Quotidien — Saint-Georges-de-Reintembault</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
 <style>
   :root {
@@ -1223,39 +1222,253 @@ async function captureImage() {
   btn.disabled = true;
 
   try {
-    // Attend que TOUTES les polices soient chargées dans la page
     await document.fonts.ready;
 
-    // Petit délai supplémentaire pour les emojis et les images de fond
-    await new Promise(r => setTimeout(r, 400));
+    // ── Données à afficher ────────────────────────────────────────────────
+    const rows = [
+      {
+        bg: "rgba(45,90,39,0.10)",
+        icon: "📅",
+        label: "Date",
+        lines: [document.getElementById("date-val").textContent.trim()],
+        sub: []
+      },
+      {
+        bg: "rgba(180,100,50,0.10)",
+        icon: "✝️",
+        label: "Fête du jour",
+        lines: [document.getElementById("saint-val").textContent.trim()],
+        sub: []
+      },
+      {
+        bg: "rgba(201,168,76,0.15)",
+        icon: "🌤️",
+        label: "Météo — Saint-Georges-de-Reintembault",
+        lines: [document.getElementById("meteo-val").textContent.trim()],
+        sub: (document.getElementById("meteo-sub").innerText || "").trim().split("\n").filter(Boolean)
+      },
+      {
+        bg: "rgba(30,80,160,0.10)",
+        icon: "🌅",
+        label: "Lever & coucher du soleil",
+        lines: [document.getElementById("soleil-val").textContent.trim()],
+        sub: []
+      },
+      {
+        bg: "rgba(80,40,120,0.10)",
+        icon: "🌙",
+        label: "Phase de la lune",
+        lines: [document.getElementById("lune-val").textContent.trim()],
+        sub: []
+      },
+      {
+        bg: "rgba(120,80,30,0.10)",
+        icon: "🌾",
+        label: "Conseil jardinage",
+        lines: [document.getElementById("jardinage-val").textContent.trim()],
+        sub: []
+      },
+      {
+        bg: "rgba(200,60,60,0.10)",
+        icon: "🗑️",
+        label: "Collecte des poubelles",
+        lines: [document.getElementById("poubelles-val").textContent.trim()],
+        sub: []
+      },
+      {
+        bg: "rgba(201,168,76,0.15)",
+        icon: "💬",
+        label: "Citation du jour",
+        lines: [document.getElementById("citation-val").textContent.trim()],
+        sub: [document.getElementById("citation-auteur").textContent.trim()]
+      },
+      {
+        bg: "rgba(220,50,50,0.10)",
+        icon: "⛽",
+        label: "Carburants moins chers — rayon 20 km",
+        lines: (document.getElementById("carburant-val").innerText || "").trim().split("\n").filter(Boolean),
+        sub: []
+      },
+    ];
 
-    const card = document.querySelector(".card");
+    // ── Paramètres ────────────────────────────────────────────────────────
+    const S = 2;          // scale retina
+    const W = 600;        // largeur logique
+    const PAD = 28;       // padding horizontal
+    const ICON_S = 40;    // taille icône
+    const ICON_R = 10;    // rayon coins icône
+    const GAP = 14;       // gap icône ↔ texte
+    const ROW_PY = 14;    // padding vertical par row
+    const LABEL_H = 14;   // hauteur label
+    const VAL_SIZE = 16;  // taille police valeur
+    const VAL_LH = 22;    // line-height valeur
+    const SUB_SIZE = 12;
+    const SUB_LH = 18;
+    const DIVIDER = 1;
+    const TEXT_W = W - PAD*2 - ICON_S - GAP; // largeur texte disponible
 
-    const canvas = await html2canvas(card, {
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: "#f5f0e8",
-      logging: false,
-      // Force html2canvas à ne pas utiliser foreignObject (meilleure compat iOS)
-      foreignObjectRendering: false,
-      removeContainer: true,
+    // ── Helpers ───────────────────────────────────────────────────────────
+    const tmp = document.createElement("canvas").getContext("2d");
+
+    function wrap(ctx, text, maxW, font) {
+      ctx.font = font;
+      if (!text) return [""];
+      const words = text.split(" ");
+      const out = [];
+      let line = "";
+      for (const w of words) {
+        const t = line ? line + " " + w : w;
+        if (ctx.measureText(t).width > maxW && line) { out.push(line); line = w; }
+        else line = t;
+      }
+      if (line) out.push(line);
+      return out.length ? out : [""];
+    }
+
+    // ── Calcul hauteur totale ─────────────────────────────────────────────
+    const HEADER_H = 72;
+    const BODY_PAD_TOP = 28;
+    const BODY_PAD_BOT = 28;
+
+    let bodyH = BODY_PAD_TOP;
+    const rowMeta = rows.map((r, i) => {
+      tmp.font = `700 ${VAL_SIZE}px 'Playfair Display', serif`;
+      const valWrapped = r.lines.flatMap(l => wrap(tmp, l, TEXT_W, `700 ${VAL_SIZE}px 'Playfair Display', serif`));
+      const subWrapped = r.sub.flatMap(l => wrap(tmp, l, TEXT_W, `${SUB_SIZE}px 'Lato', sans-serif`));
+      const contentH = LABEL_H + 4 + valWrapped.length * VAL_LH + (subWrapped.length ? 3 + subWrapped.length * SUB_LH : 0);
+      const rowH = Math.max(ICON_S, contentH) + ROW_PY * 2;
+      bodyH += rowH + (i < rows.length - 1 ? DIVIDER : 0);
+      return { valWrapped, subWrapped, rowH };
+    });
+    bodyH += BODY_PAD_BOT;
+
+    const TOTAL_H = HEADER_H + bodyH;
+
+    // ── Crée le canvas ─────────────────────────────────────────────────────
+    const canvas = document.createElement("canvas");
+    canvas.width  = W * S;
+    canvas.height = TOTAL_H * S;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(S, S);
+
+    // ── Helpers formes ─────────────────────────────────────────────────────
+    function roundRect(c, x, y, w, h, r) {
+      c.beginPath();
+      c.moveTo(x+r, y);
+      c.lineTo(x+w-r, y); c.arcTo(x+w, y, x+w, y+r, r);
+      c.lineTo(x+w, y+h-r); c.arcTo(x+w, y+h, x+w-r, y+h, r);
+      c.lineTo(x+r, y+h); c.arcTo(x, y+h, x, y+h-r, r);
+      c.lineTo(x, y+r); c.arcTo(x, y, x+r, y, r);
+      c.closePath();
+    }
+    function roundRectTop(c, x, y, w, h, r) {
+      c.beginPath();
+      c.moveTo(x+r, y);
+      c.lineTo(x+w-r, y); c.arcTo(x+w, y, x+w, y+r, r);
+      c.lineTo(x+w, y+h);
+      c.lineTo(x, y+h);
+      c.lineTo(x, y+r); c.arcTo(x, y, x+r, y, r);
+      c.closePath();
+    }
+
+    // ── Fond carte (blanc + ombre simulée par border) ──────────────────────
+    ctx.fillStyle = "white";
+    roundRect(ctx, 0, 0, W, TOTAL_H, 16);
+    ctx.fill();
+
+    // ── Header vert ────────────────────────────────────────────────────────
+    ctx.fillStyle = "#2d5a27";
+    roundRectTop(ctx, 0, 0, W, HEADER_H, 16);
+    ctx.fill();
+
+    // Icône maison
+    ctx.font = "28px serif";
+    ctx.textAlign = "left";
+    ctx.fillText("🏡", PAD, HEADER_H/2 + 10);
+
+    // Titre
+    ctx.fillStyle = "white";
+    ctx.font = `400 18px 'Playfair Display', serif`;
+    ctx.textAlign = "left";
+    ctx.fillText("Informations du jour", PAD + 42, HEADER_H/2 - 4);
+
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.font = `300 12px 'Lato', sans-serif`;
+    ctx.fillText("Saint-Georges-de-Reintembault · " + new Date().toLocaleDateString("fr-FR"), PAD + 42, HEADER_H/2 + 13);
+
+    // ── Rows ───────────────────────────────────────────────────────────────
+    let y = HEADER_H + BODY_PAD_TOP;
+
+    rows.forEach((r, i) => {
+      const { valWrapped, subWrapped, rowH } = rowMeta[i];
+      const rowCy = y + rowH / 2;
+
+      // Icône carré arrondi
+      ctx.fillStyle = r.bg;
+      roundRect(ctx, PAD, rowCy - ICON_S/2, ICON_S, ICON_S, ICON_R);
+      ctx.fill();
+
+      ctx.font = "20px serif";
+      ctx.textAlign = "center";
+      ctx.fillText(r.icon, PAD + ICON_S/2, rowCy + 7);
+
+      // Texte
+      const tx = PAD + ICON_S + GAP;
+      let ty = y + ROW_PY;
+
+      // Label
+      ctx.fillStyle = "#7a7060";
+      ctx.font = `700 10px 'Lato', sans-serif`;
+      ctx.textAlign = "left";
+      ctx.letterSpacing = "1.5px";
+      ctx.fillText(r.label.toUpperCase(), tx, ty + LABEL_H);
+      ctx.letterSpacing = "0px";
+      ty += LABEL_H + 4;
+
+      // Valeur
+      ctx.fillStyle = "#3a2e1e";
+      ctx.font = `400 ${VAL_SIZE}px 'Playfair Display', serif`;
+      for (const line of valWrapped) {
+        ty += VAL_LH;
+        ctx.fillText(line, tx, ty);
+      }
+
+      // Sous-texte
+      if (subWrapped.length) {
+        ty += 3;
+        ctx.fillStyle = "#7a7060";
+        ctx.font = `400 ${SUB_SIZE}px 'Lato', sans-serif`;
+        for (const line of subWrapped) {
+          ty += SUB_LH;
+          ctx.fillText(line, tx, ty);
+        }
+      }
+
+      // Divider
+      if (i < rows.length - 1) {
+        ctx.strokeStyle = "rgba(0,0,0,0.06)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(PAD, y + rowH);
+        ctx.lineTo(W - PAD, y + rowH);
+        ctx.stroke();
+      }
+
+      y += rowH + (i < rows.length - 1 ? DIVIDER : 0);
     });
 
+    // ── Partage ────────────────────────────────────────────────────────────
     const fname = `saint-georges-${new Date().toISOString().slice(0,10)}.png`;
-
     canvas.toBlob(async (blob) => {
       if (navigator.share) {
         try {
           const file = new File([blob], fname, { type: "image/png" });
           await navigator.share({ files: [file], title: "Post du jour — Saint-Georges" });
         } catch(e) {
-          // Annulé → ouvre dans un onglet pour enregistrer manuellement
           const imgUrl = URL.createObjectURL(blob);
           window.open(imgUrl, "_blank");
         }
       } else {
-        // PC : télécharge directement
         const imgUrl = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = imgUrl; a.download = fname; a.click();
