@@ -1026,30 +1026,30 @@ function distanceKm(lat1, lon1, lat2, lon2) {
 async function fetchCarburants() {
   try {
     // Recherche par distance GPS directement — évite les problèmes de filtre dep_code
-    // URL sans timezone pour éviter les problèmes d'encodage
-    const apiUrl = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=distance(geom%2C%20geom'POINT(${LON}%20${LAT})'%2C%2020km)&limit=100&select=adresse%2Cnom%2Cville%2Ccp%2Clatitude%2Clongitude%2Csp95_prix%2Csp98_prix%2Ce10_prix%2Ce85_prix%2Cgazole_prix%2Cgplc_prix`;
-
-    // Proxys CORS en cascade
-    const proxies = [
-      `https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`,
-      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(apiUrl)}`,
-      `https://corsproxy.org/?url=${encodeURIComponent(apiUrl)}`,
-    ];
+    // Appel direct à l'API gouvernementale — supporte CORS depuis HTTPS
+    // Les apostrophes dans geom'POINT' doivent être encodées en %27
+    const where = `distance(geom, geom%27POINT(${LON}%20${LAT})%27, 20km)`;
+    const select = `adresse,nom,ville,cp,latitude,longitude,sp95_prix,sp98_prix,e10_prix,e85_prix,gazole_prix,gplc_prix`;
+    const apiUrl = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=${where}&limit=100&select=${encodeURIComponent(select)}`;
 
     let d = null;
-    for (const proxyUrl of proxies) {
+    try {
+      const r = await fetch(apiUrl, { signal: AbortSignal.timeout(10000) });
+      if (r.ok) {
+        d = await r.json();
+        if (!d.results || d.results.length === 0) d = null;
+      }
+    } catch(e) {}
+
+    // Si l'appel direct échoue, tenter allorigins en fallback
+    if (!d) {
       try {
-        const r = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
-        if (!r.ok) continue;
-        const text = await r.text();
-        let parsed;
-        try {
-          const json = JSON.parse(text);
-          // allorigins wrappe dans .contents
-          parsed = json.contents !== undefined ? JSON.parse(json.contents) : json;
-        } catch(e) { continue; }
-        if (parsed.results && parsed.results.length > 0) { d = parsed; break; }
-      } catch(e) { continue; }
+        const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`, { signal: AbortSignal.timeout(10000) });
+        if (r.ok) {
+          const json = await r.json();
+          d = JSON.parse(json.contents);
+        }
+      } catch(e) {}
     }
     if (!d || !d.results || d.results.length === 0) return null;
 
