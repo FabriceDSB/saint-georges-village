@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Post Quotidien — Saint-Georges-de-Reintembault</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root {
     --vert: #2d5a27;
@@ -396,6 +397,9 @@
   </div>
   <button class="copy-btn" id="copy-btn" onclick="copyPost()">
     <span>📋</span> Copier le post
+  </button>
+  <button class="copy-btn" id="img-btn" onclick="captureImage()" style="background:var(--vert-clair);margin-top:10px">
+    <span>📸</span> Partager en image
   </button>
   <button class="refresh-btn" onclick="loadAll()">
     <span id="refresh-icon">🔄</span> Actualiser
@@ -1210,6 +1214,49 @@ function buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation
   lines.push(`#SaintGeorgesDeReintembault #VieDeVillage #Reintembault`);
 
   return lines.join("\n");
+}
+
+async function captureImage() {
+  const btn = document.getElementById("img-btn");
+  btn.innerHTML = "<span>⏳</span> Génération...";
+  btn.disabled = true;
+
+  try {
+    const card = document.querySelector(".card");
+    const canvas = await html2canvas(card, {
+      scale: 2, // haute résolution
+      useCORS: true,
+      backgroundColor: "#f5f0e8",
+      logging: false,
+    });
+
+    // Sur iPhone/mobile : ouvre l'image dans un nouvel onglet pour enregistrer/partager
+    const imgData = canvas.toDataURL("image/png");
+
+    if (navigator.share && navigator.canShare) {
+      // Web Share API — fonctionne sur iPhone Safari
+      canvas.toBlob(async (blob) => {
+        const file = new File([blob], `saint-georges-${new Date().toISOString().slice(0,10)}.png`, { type: "image/png" });
+        try {
+          await navigator.share({
+            files: [file],
+            title: "Post du jour — Saint-Georges-de-Reintembault",
+          });
+        } catch(e) {
+          // Si share annulé, ouvrir dans nouvel onglet
+          window.open(imgData, "_blank");
+        }
+      }, "image/png");
+    } else {
+      // Sur PC : ouvre l'image dans un nouvel onglet
+      window.open(imgData, "_blank");
+    }
+  } catch(e) {
+    alert("Erreur lors de la capture. Essaie d'actualiser la page.");
+  }
+
+  btn.innerHTML = "<span>📸</span> Partager en image";
+  btn.disabled = false;
 }
 
 async function loadAll() {
