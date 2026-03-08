@@ -1027,10 +1027,8 @@ async function fetchCarburants() {
   try {
     // Recherche par distance GPS directement — évite les problèmes de filtre dep_code
     // Appel direct à l'API gouvernementale — supporte CORS depuis HTTPS
-    // Les apostrophes dans geom'POINT' doivent être encodées en %27
     const where = `distance(geom, geom%27POINT(${LON}%20${LAT})%27, 20km)`;
-    const select = `adresse,nom,ville,cp,latitude,longitude,sp95_prix,sp98_prix,e10_prix,e85_prix,gazole_prix,gplc_prix`;
-    const apiUrl = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=${where}&limit=100&select=${encodeURIComponent(select)}`;
+    const apiUrl = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=${where}&limit=100&select=adresse,nom,ville,cp,latitude,longitude,sp95_prix,sp98_prix,e10_prix,e85_prix,gazole_prix,gplc_prix`;
 
     let d = null;
     try {
