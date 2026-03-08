@@ -1026,7 +1026,7 @@ function distanceKm(lat1, lon1, lat2, lon2) {
 async function fetchCarburants() {
   try {
     // Recherche par distance GPS directement — évite les problèmes de filtre dep_code
-    const apiUrl = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=distance(geom%2C%20geom'POINT(${LON}%20${LAT})'%2C%2020km)&limit=100&select=adresse%2Cville%2Ccp%2Clatitude%2Clongitude%2Csp95_prix%2Csp98_prix%2Ce10_prix%2Ce85_prix%2Cgazole_prix%2Cgplc_prix&timezone=Europe%2FParis`;
+    const apiUrl = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=distance(geom%2C%20geom'POINT(${LON}%20${LAT})'%2C%2020km)&limit=100&select=adresse%2Cnom%2Cville%2Ccp%2Clatitude%2Clongitude%2Csp95_prix%2Csp98_prix%2Ce10_prix%2Ce85_prix%2Cgazole_prix%2Cgplc_prix&timezone=Europe%2FParis`;
 
     // Essayer plusieurs proxys en cascade (compatibilité mobile)
     const proxies = [
@@ -1079,6 +1079,7 @@ async function fetchCarburants() {
       );
       meilleures[cfg.label] = {
         prix: parseFloat(best[cfg.champ]).toFixed(3),
+        nom: best.nom || null,
         ville: best.ville || best.cp || "–",
         dist: Math.round(best.dist),
         emoji: cfg.emoji
@@ -1094,16 +1095,38 @@ async function fetchCarburants() {
 // ─── Météo ────────────────────────────────────────────────────────────────────
 async function fetchMeteo() {
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=weathercode,temperature_2m_max,temperature_2m_min,windspeed_10m_max&daily=sunrise,sunset&current_weather=true&timezone=Europe%2FParis&forecast_days=1`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&hourly=weathercode,temperature_2m,windspeed_10m,precipitation_probability&daily=weathercode,temperature_2m_max,temperature_2m_min,windspeed_10m_max,sunrise,sunset&timezone=Europe%2FParis&forecast_days=1`;
     const r = await fetch(url);
     const d = await r.json();
+
+    // Données journalières
     const code = d.daily.weathercode[0];
     const tmax = Math.round(d.daily.temperature_2m_max[0]);
     const tmin = Math.round(d.daily.temperature_2m_min[0]);
     const vent = Math.round(d.daily.windspeed_10m_max[0]);
-    return { desc: WMO[code] || "Temps variable 🌤️", tmax, tmin, vent };
+
+    // Données horaires — matin (9h) et soir (19h)
+    const heures = d.hourly.time.map(t => new Date(t).getHours());
+    const iMatin = heures.indexOf(9);
+    const iSoir  = heures.indexOf(19);
+
+    const matin = iMatin >= 0 ? {
+      desc: WMO[d.hourly.weathercode[iMatin]] || "Temps variable",
+      temp: Math.round(d.hourly.temperature_2m[iMatin]),
+      pluie: d.hourly.precipitation_probability[iMatin],
+      vent: Math.round(d.hourly.windspeed_10m[iMatin]),
+    } : null;
+
+    const soir = iSoir >= 0 ? {
+      desc: WMO[d.hourly.weathercode[iSoir]] || "Temps variable",
+      temp: Math.round(d.hourly.temperature_2m[iSoir]),
+      pluie: d.hourly.precipitation_probability[iSoir],
+      vent: Math.round(d.hourly.windspeed_10m[iSoir]),
+    } : null;
+
+    return { desc: WMO[code] || "Temps variable 🌤️", tmax, tmin, vent, matin, soir };
   } catch (e) {
-    return { desc: "Données indisponibles", tmax: "–", tmin: "–", vent: "–" };
+    return { desc: "Données indisponibles", tmax: "–", tmin: "–", vent: "–", matin: null, soir: null };
   }
 }
 
@@ -1153,6 +1176,8 @@ function buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation
   lines.push(`🌤️ Météo à Saint-Georges-de-Reintembault`);
   lines.push(`${desc}${humourMeteo}`);
   lines.push(`🌡️ ${tmin}°C / ${tmax}°C  •  💨 Vent max : ${vent} km/h`);
+  if (meteo.matin) lines.push(`🌅 Matin (9h) : ${meteo.matin.desc}, ${meteo.matin.temp}°C, 🌧️ ${meteo.matin.pluie}% de pluie`);
+  if (meteo.soir)  lines.push(`🌆 Soir (19h) : ${meteo.soir.desc}, ${meteo.soir.temp}°C, 🌧️ ${meteo.soir.pluie}% de pluie`);
   lines.push(`🌅 Lever : ${soleil.lever}  •  Coucher : ${soleil.coucher}`);
   lines.push(``);
   lines.push(`${lune.emoji} Lune : ${lune.nom} — ${lune.conseil}`);
@@ -1175,7 +1200,8 @@ function buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation
   if (carburants && Object.keys(carburants).length > 0) {
     lines.push(`⛽ Carburants les moins chers (rayon 20 km) :`);
     for (const [label, info] of Object.entries(carburants)) {
-      lines.push(`${info.emoji} ${label} — ${info.prix}€/L  📍 ${info.ville} (${info.dist} km)`);
+      const station = info.nom ? `${info.nom} — ${info.ville}` : info.ville;
+      lines.push(`${info.emoji} ${label} — ${info.prix}€/L  📍 ${station} (${info.dist} km)`);
     }
     lines.push(``);
   }
@@ -1221,12 +1247,19 @@ async function loadAll() {
 
   document.getElementById("meteo-val").textContent = meteo.desc;
   document.getElementById("meteo-sub").textContent = `🌡️ ${meteo.tmin}°C / ${meteo.tmax}°C  •  💨 Vent max : ${meteo.vent} km/h`;
+  if (meteo.matin && meteo.soir) {
+    document.getElementById("meteo-sub").innerHTML =
+      `🌡️ ${meteo.tmin}°C / ${meteo.tmax}°C  •  💨 Vent max : ${meteo.vent} km/h<br>` +
+      `🌅 <strong>Matin (9h) :</strong> ${meteo.matin.desc}, ${meteo.matin.temp}°C, 🌧️ ${meteo.matin.pluie}% de pluie<br>` +
+      `🌆 <strong>Soir (19h) :</strong> ${meteo.soir.desc}, ${meteo.soir.temp}°C, 🌧️ ${meteo.soir.pluie}% de pluie`;
+  }
   document.getElementById("soleil-val").textContent = `🌅 Lever : ${soleil.lever}  •  🌇 Coucher : ${soleil.coucher}`;
 
   if (carburants && Object.keys(carburants).length > 0) {
-    const lines = Object.entries(carburants).map(([label, info]) =>
-      `${info.emoji} ${label} — ${info.prix}€/L — ${info.ville} (${info.dist} km)`
-    );
+    const lines = Object.entries(carburants).map(([label, info]) => {
+      const station = info.nom ? `${info.nom} — ${info.ville}` : info.ville;
+      return `${info.emoji} ${label} — ${info.prix}€/L — ${station} (${info.dist} km)`;
+    });
     document.getElementById("carburant-val").innerHTML = lines.join("<br>");
   } else {
     document.getElementById("carburant-val").textContent = "Données indisponibles";
