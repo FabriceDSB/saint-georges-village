@@ -1026,13 +1026,14 @@ function distanceKm(lat1, lon1, lat2, lon2) {
 async function fetchCarburants() {
   try {
     // Recherche par distance GPS directement — évite les problèmes de filtre dep_code
-    const apiUrl = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=distance(geom%2C%20geom'POINT(${LON}%20${LAT})'%2C%2020km)&limit=100&select=adresse%2Cnom%2Cville%2Ccp%2Clatitude%2Clongitude%2Csp95_prix%2Csp98_prix%2Ce10_prix%2Ce85_prix%2Cgazole_prix%2Cgplc_prix&timezone=Europe%2FParis`;
+    // URL sans timezone pour éviter les problèmes d'encodage
+    const apiUrl = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=distance(geom%2C%20geom'POINT(${LON}%20${LAT})'%2C%2020km)&limit=100&select=adresse%2Cnom%2Cville%2Ccp%2Clatitude%2Clongitude%2Csp95_prix%2Csp98_prix%2Ce10_prix%2Ce85_prix%2Cgazole_prix%2Cgplc_prix`;
 
-    // Essayer plusieurs proxys en cascade (compatibilité mobile)
+    // Proxys CORS en cascade
     const proxies = [
       `https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`,
-      `https://corsproxy.io/?url=${encodeURIComponent(apiUrl)}`,
       `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(apiUrl)}`,
+      `https://thingproxy.freeboard.io/fetch/${apiUrl}`,
     ];
 
     let d = null;
@@ -1040,10 +1041,13 @@ async function fetchCarburants() {
       try {
         const r = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
         if (!r.ok) continue;
-        const json = await r.json();
-        // allorigins wrappe dans .contents, codetabs retourne directement
-        const raw = json.contents !== undefined ? json.contents : JSON.stringify(json);
-        const parsed = JSON.parse(raw);
+        const text = await r.text();
+        let parsed;
+        try {
+          const json = JSON.parse(text);
+          // allorigins wrappe dans .contents
+          parsed = json.contents !== undefined ? JSON.parse(json.contents) : json;
+        } catch(e) { continue; }
         if (parsed.results && parsed.results.length > 0) { d = parsed; break; }
       } catch(e) { continue; }
     }
