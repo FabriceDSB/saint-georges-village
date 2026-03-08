@@ -1383,7 +1383,7 @@ async function captureImage() {
     ctx.fill();
 
     // Icône maison
-    ctx.font = "28px serif";
+    ctx.font = "28px 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', serif";
     ctx.textAlign = "left";
     ctx.fillText("🏡", PAD, HEADER_H/2 + 10);
 
@@ -1409,7 +1409,7 @@ async function captureImage() {
       roundRect(ctx, PAD, rowCy - ICON_S/2, ICON_S, ICON_S, ICON_R);
       ctx.fill();
 
-      ctx.font = "20px serif";
+      ctx.font = "20px 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', serif";
       ctx.textAlign = "center";
       ctx.fillText(r.icon, PAD + ICON_S/2, rowCy + 7);
 
@@ -1426,7 +1426,7 @@ async function captureImage() {
 
       // Valeur
       ctx.fillStyle = "#3a2e1e";
-      ctx.font = `400 ${VAL_SIZE}px 'Playfair Display', serif`;
+      ctx.font = `400 ${VAL_SIZE}px 'Playfair Display', 'Apple Color Emoji', 'Segoe UI Emoji', serif`;
       for (const line of valWrapped) {
         ty += VAL_LH;
         ctx.fillText(line, tx, ty);
@@ -1436,7 +1436,7 @@ async function captureImage() {
       if (subWrapped.length) {
         ty += 3;
         ctx.fillStyle = "#7a7060";
-        ctx.font = `400 ${SUB_SIZE}px 'Lato', sans-serif`;
+        ctx.font = `400 ${SUB_SIZE}px 'Lato', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif`;
         for (const line of subWrapped) {
           ty += SUB_LH;
           ctx.fillText(line, tx, ty);
@@ -1460,11 +1460,24 @@ async function captureImage() {
     ctx.fillStyle = "#f5f0e8";
     ctx.fillRect(0, y + BODY_PAD_BOT, W, FOOTER_H);
 
+    // Logo Facebook dessiné
+    const fbX = W/2 - 130, fbY = y + BODY_PAD_BOT + 8, fbR = 12;
+    // Cercle bleu
+    ctx.fillStyle = "#1877F2";
+    ctx.beginPath();
+    ctx.arc(fbX + fbR, fbY + fbR, fbR, 0, Math.PI * 2);
+    ctx.fill();
+    // Lettre "f" blanche
+    ctx.fillStyle = "white";
+    ctx.font = `bold 16px 'Lato', sans-serif`;
+    ctx.textAlign = "center";
+    ctx.fillText("f", fbX + fbR, fbY + fbR + 6);
+
     ctx.fillStyle = "#2d5a27";
     ctx.font = `700 11px 'Lato', sans-serif`;
-    ctx.textAlign = "center";
-    ctx.fillText("📘 Vente, recherche et information", W/2, y + BODY_PAD_BOT + 18);
-    ctx.fillText("Saint-Georges-de-Reintembault et autour", W/2, y + BODY_PAD_BOT + 34);
+    ctx.textAlign = "left";
+    ctx.fillText("Vente, recherche et information", fbX + fbR*2 + 6, y + BODY_PAD_BOT + 18);
+    ctx.fillText("Saint-Georges-de-Reintembault et autour", fbX + fbR*2 + 6, y + BODY_PAD_BOT + 34);
 
     // ── Partage ────────────────────────────────────────────────────────────
     const fname = `saint-georges-${new Date().toISOString().slice(0,10)}.png`;
