@@ -1342,7 +1342,8 @@ async function captureImage() {
     });
     bodyH += BODY_PAD_BOT;
 
-    const TOTAL_H = HEADER_H + bodyH;
+    const FOOTER_H = 48;
+    const TOTAL_H = HEADER_H + bodyH + FOOTER_H;
 
     // ── Crée le canvas ─────────────────────────────────────────────────────
     const canvas = document.createElement("canvas");
@@ -1420,9 +1421,7 @@ async function captureImage() {
       ctx.fillStyle = "#7a7060";
       ctx.font = `700 10px 'Lato', sans-serif`;
       ctx.textAlign = "left";
-      ctx.letterSpacing = "1.5px";
       ctx.fillText(r.label.toUpperCase(), tx, ty + LABEL_H);
-      ctx.letterSpacing = "0px";
       ty += LABEL_H + 4;
 
       // Valeur
@@ -1456,6 +1455,16 @@ async function captureImage() {
 
       y += rowH + (i < rows.length - 1 ? DIVIDER : 0);
     });
+
+    // ── Footer groupe Facebook ─────────────────────────────────────────────
+    ctx.fillStyle = "#f5f0e8";
+    ctx.fillRect(0, y + BODY_PAD_BOT, W, FOOTER_H);
+
+    ctx.fillStyle = "#2d5a27";
+    ctx.font = `700 11px 'Lato', sans-serif`;
+    ctx.textAlign = "center";
+    ctx.fillText("📘 Vente, recherche et information", W/2, y + BODY_PAD_BOT + 18);
+    ctx.fillText("Saint-Georges-de-Reintembault et autour", W/2, y + BODY_PAD_BOT + 34);
 
     // ── Partage ────────────────────────────────────────────────────────────
     const fname = `saint-georges-${new Date().toISOString().slice(0,10)}.png`;
