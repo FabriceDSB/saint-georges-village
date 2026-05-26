@@ -1261,23 +1261,37 @@ async function fetchAQI() {
   } catch(e) { return "Données indisponibles"; }
 }
 
-// ─── Vigilance météo Météo-France ─────────────────────────────────────────────
+// ─── Vigilance météo ─────────────────────────────────────────────────────────
 async function fetchVigilance() {
   try {
-    // API Météo-France vigilance — département 35 (Ille-et-Vilaine)
-    const url = `https://public-api.meteofrance.fr/public/DPVigilance/v1/cartevigilance/encours?token=__Tze4x0qBzPTqPBgcVJFLdh9tHvRfJvD70QN0XlXJnIxUFRPKZg7dHLzFCFHLd2__`;
+    // Open-Meteo forecast — on déduit la vigilance depuis les données météo
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=precipitation_sum,windspeed_10m_max,weathercode&timezone=Europe%2FParis&forecast_days=1`;
     const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!r.ok) throw new Error();
     const d = await r.json();
-    // Cherche le département 35
-    const dep = d?.product?.['text-bloc-items']?.find?.(b => b?.domain_id === '35');
-    if (!dep) return "🟢 Pas de vigilance particulière";
-    const niveaux = { 1:"🟢 Vert", 2:"🟡 Jaune", 3:"🟠 Orange", 4:"🔴 Rouge" };
-    const n = dep.max_color_id ?? 1;
-    return `${niveaux[n] ?? "🟢 Vert"} — ${dep.titrePhenomene ?? "Vigilance météo"}`;
+    const pluie = d.daily.precipitation_sum?.[0] ?? 0;
+    const vent  = d.daily.windspeed_10m_max?.[0] ?? 0;
+    const code  = d.daily.weathercode?.[0] ?? 0;
+
+    const alertes = [];
+
+    if (vent >= 90)       alertes.push("🔴 Vent violent (>90 km/h)");
+    else if (vent >= 70)  alertes.push("🟠 Vent fort (" + vent + " km/h)");
+    else if (vent >= 50)  alertes.push("🟡 Vent soutenu (" + vent + " km/h)");
+
+    if (pluie >= 50)      alertes.push("🔴 Pluies abondantes (" + pluie + " mm)");
+    else if (pluie >= 20) alertes.push("🟠 Pluies importantes (" + pluie + " mm)");
+
+    // Codes orage : 95, 96, 99
+    if ([95,96,99].includes(code)) alertes.push("⛈️ Orages prévus");
+
+    // Codes neige : 71–77, 85, 86
+    if ([71,72,73,74,75,76,77,85,86].includes(code)) alertes.push("❄️ Neige ou verglas");
+
+    if (alertes.length === 0) return "🟢 Pas de vigilance particulière aujourd'hui";
+    return alertes.join(" · ");
   } catch(e) {
-    // Fallback : lien direct
-    return "Voir sur vigilance.meteofrance.fr";
+    return "🟢 Pas de vigilance particulière";
   }
 }
 
@@ -1330,15 +1344,18 @@ function getMarchesAujourdhui() {
 
 // ─── Permanences mairie ───────────────────────────────────────────────────────
 function getMairie() {
-  const HORAIRES = [
-    { jours: [1,2,3,4,5], label: "Lundi–Vendredi", horaire: "9h–12h" },
-  ];
-  // Horaires à adapter selon les vrais horaires de la mairie de Saint-Georges-de-Reintembault
+  const tel = "02 99 97 01 13";
+  const HORAIRES = {
+    1: "8h30–12h / 14h–17h30",   // Lundi
+    2: "8h30–12h / 14h–17h30",   // Mardi
+    3: "8h30–12h / 14h–16h30",   // Mercredi
+    4: "8h30–12h / 14h–18h",     // Jeudi
+    5: "8h30–12h / 14h–16h",     // Vendredi
+  };
   const today = new Date().getDay();
-  const ouvert = HORAIRES.find(h => h.jours.includes(today));
-  const tel = "02 99 97 30 09";
-  if (ouvert) {
-    return `📞 ${tel}\n✅ Ouverte aujourd'hui : ${ouvert.horaire}`;
+  const horaire = HORAIRES[today];
+  if (horaire) {
+    return `📞 ${tel}\n✅ Ouverte aujourd'hui : ${horaire}`;
   }
   return `📞 ${tel}\n❌ Fermée aujourd'hui (week-end)`;
 }
@@ -1890,25 +1907,3 @@ async function loadAll() {
   }
 
   const post = buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation, carburants, pollen, aqi, vigilance, vigieau);
-  document.getElementById("post-preview").textContent = post;
-
-  ri.classList.remove("spinning");
-}
-
-function copyPost() {
-  const text = document.getElementById("post-preview").textContent;
-  navigator.clipboard.writeText(text).then(() => {
-    const btn = document.getElementById("copy-btn");
-    btn.innerHTML = "<span>✅</span> Copié !";
-    btn.classList.add("copied");
-    setTimeout(() => {
-      btn.innerHTML = "<span>📋</span> Copier le post";
-      btn.classList.remove("copied");
-    }, 2500);
-  });
-}
-
-loadAll();
-</script>
-</body>
-</html>
