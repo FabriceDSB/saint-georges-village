@@ -1890,4 +1890,39 @@ async function loadAll() {
   }
   document.getElementById("soleil-val").textContent = `🌅 Lever : ${soleil.lever}  •  🌇 Coucher : ${soleil.coucher}`;
   document.getElementById("pollen-val").textContent = pollen;
-  document.getElementById("aqi-val").textConte
+  document.getElementById("aqi-val").textContent = aqi;
+  document.getElementById("vigilance-val").textContent = vigilance;
+  document.getElementById("vigieau-val").textContent = vigieau;
+
+  if (carburants && Object.keys(carburants).length > 0) {
+    const lines = Object.entries(carburants).map(([label, info]) =>
+      `${info.emoji} ${label} — ${info.prix}€/L — ${info.ville} (${info.dist} km)`
+    );
+    document.getElementById("carburant-val").innerHTML = lines.join("<br>");
+  } else {
+    document.getElementById("carburant-val").textContent = "Données indisponibles";
+  }
+
+  const post = buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation, carburants, pollen, aqi, vigilance, vigieau);
+  document.getElementById("post-preview").textContent = post;
+
+  ri.classList.remove("spinning");
+}
+
+function copyPost() {
+  const text = document.getElementById("post-preview").textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById("copy-btn");
+    btn.innerHTML = "<span>✅</span> Copié !";
+    btn.classList.add("copied");
+    setTimeout(() => {
+      btn.innerHTML = "<span>📋</span> Copier le post";
+      btn.classList.remove("copied");
+    }, 2500);
+  });
+}
+
+loadAll();
+</script>
+</body>
+</html>
