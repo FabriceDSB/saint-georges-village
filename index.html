@@ -381,6 +381,48 @@
       </div>
     </div>
     <div class="info-row">
+      <div class="info-icon" style="background:rgba(180,220,50,0.15)">🌿</div>
+      <div>
+        <div class="info-label">Indice pollen</div>
+        <div class="info-value" id="pollen-val"><span class="loading">Chargement...</span></div>
+      </div>
+    </div>
+    <div class="info-row">
+      <div class="info-icon" style="background:rgba(40,120,200,0.12)">💨</div>
+      <div>
+        <div class="info-label">Qualité de l'air (AQI)</div>
+        <div class="info-value" id="aqi-val"><span class="loading">Chargement...</span></div>
+      </div>
+    </div>
+    <div class="info-row">
+      <div class="info-icon" style="background:rgba(255,160,0,0.15)">⚠️</div>
+      <div>
+        <div class="info-label">Vigilance météo Ille-et-Vilaine</div>
+        <div class="info-value" id="vigilance-val"><span class="loading">Chargement...</span></div>
+      </div>
+    </div>
+    <div class="info-row">
+      <div class="info-icon" style="background:rgba(0,100,60,0.12)">💧</div>
+      <div>
+        <div class="info-label">Restrictions d'eau (VigiEau)</div>
+        <div class="info-value" id="vigieau-val"><span class="loading">Chargement...</span></div>
+      </div>
+    </div>
+    <div class="info-row">
+      <div class="info-icon" style="background:rgba(255,200,0,0.15)">🛒</div>
+      <div>
+        <div class="info-label">Marchés proches aujourd'hui</div>
+        <div class="info-value" id="marche-val"><span class="loading">Chargement...</span></div>
+      </div>
+    </div>
+    <div class="info-row">
+      <div class="info-icon" style="background:rgba(60,60,180,0.12)">🏛️</div>
+      <div>
+        <div class="info-label">Mairie de Saint-Georges</div>
+        <div class="info-value" id="mairie-val"><span class="loading">Chargement...</span></div>
+      </div>
+    </div>
+    <div class="info-row">
       <div class="info-icon" style="background:rgba(220,50,50,0.10)">⛽</div>
       <div>
         <div class="info-label">Carburants moins chers — rayon 20 km</div>
@@ -986,35 +1028,94 @@ function getProchainsLundi(depuis) {
   return prochain;
 }
 
+function getJoursFeries(annee) {
+  // Calcul de Pâques (algorithme de Meeus/Jones/Butcher)
+  const a = annee % 19, b = Math.floor(annee/100), c = annee % 100;
+  const d = Math.floor(b/4), e = b % 4, f = Math.floor((b+8)/25);
+  const g = Math.floor((b-f+1)/3), h = (19*a+b-d-g+15) % 30;
+  const i = Math.floor(c/4), k = c % 4;
+  const l = (32+2*e+2*i-h-k) % 7;
+  const m = Math.floor((a+11*h+22*l)/451);
+  const mois = Math.floor((h+l-7*m+114)/31) - 1; // 0-indexed
+  const jour = ((h+l-7*m+114) % 31) + 1;
+  const paques = new Date(annee, mois, jour);
+
+  const j = (offset) => { const d = new Date(paques); d.setDate(paques.getDate()+offset); return d; };
+  const f2 = (m, d) => new Date(annee, m-1, d);
+
+  return [
+    f2(1,1), f2(5,1), f2(5,8), f2(7,14), f2(8,15),
+    f2(11,1), f2(11,11), f2(12,25),
+    j(1),   // Lundi de Pâques
+    j(39),  // Ascension
+    j(50),  // Lundi de Pentecôte
+  ].map(d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
+}
+
+function estFerie(date) {
+  const feries = getJoursFeries(date.getFullYear());
+  const key = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+  return feries.includes(key);
+}
+
 function getPoubellesInfo() {
   const now = new Date();
   now.setHours(12,0,0,0);
   const day = now.getDay();
 
-  // Lundi de cette semaine (ou aujourd'hui si lundi)
+  // Lundi de cette semaine
   const lundiCette = new Date(now);
   lundiCette.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
   lundiCette.setHours(0,0,0,0);
 
-  const couleurCette = getCouleurPoubelle(lundiCette);
   const lundiProchain = new Date(lundiCette);
   lundiProchain.setDate(lundiCette.getDate() + 7);
+
+  // Si le lundi de collecte tombe un jour férié → reporté au mardi
+  function getCollecteReelle(lundi) {
+    if (estFerie(lundi)) {
+      const mardi = new Date(lundi);
+      mardi.setDate(lundi.getDate() + 1);
+      return { date: mardi, reporte: true };
+    }
+    return { date: lundi, reporte: false };
+  }
+
+  const couleurCette  = getCouleurPoubelle(lundiCette);
+  const collecteCette = getCollecteReelle(lundiCette);
+  const collecteProchain = getCollecteReelle(lundiProchain);
   const couleurProchain = getCouleurPoubelle(lundiProchain);
 
+  const ferieLabel = (lundi) => {
+    const feries = getJoursFeries(lundi.getFullYear());
+    const key = `${lundi.getFullYear()}-${String(lundi.getMonth()+1).padStart(2,'0')}-${String(lundi.getDate()).padStart(2,'0')}`;
+    // Nom simplifié
+    const noms = { "01-01":"Jour de l'An","05-01":"Fête du Travail","05-08":"Victoire 1945","07-14":"Fête Nationale","08-15":"Assomption","11-01":"Toussaint","11-11":"Armistice","12-25":"Noël" };
+    const mmdd = key.slice(5);
+    return noms[mmdd] || "Jour férié";
+  };
+
   if (day === 1) {
-    // Aujourd'hui c'est lundi : collecte aujourd'hui
+    if (collecteCette.reporte) {
+      return { rappel: true, msg: `Lundi férié (${ferieLabel(lundiCette)}) — collecte de la poubelle ${couleurCette} reportée à demain mardi. 🚛` };
+    }
     return { rappel: true, msg: `C'est lundi ! Collecte de la poubelle ${couleurCette} aujourd'hui. 🚛` };
   }
   if (day === 0) {
-    // Dimanche : rappel ce soir, collecte demain
+    if (collecteProchain.reporte) {
+      return { rappel: true, msg: `Demain est férié (${ferieLabel(lundiProchain)}) — la collecte ${couleurProchain} est reportée au mardi. Sortez-la quand même ce soir. 🌙` };
+    }
     return { rappel: true, msg: `Demain c'est lundi ! Sortez la poubelle ${couleurProchain} ce soir. 🌙` };
   }
-  // Autre jour : info sur le prochain lundi
   const dansN = (1 - day + 7) % 7 || 7;
   if (dansN === 1) {
+    if (collecteProchain.reporte) {
+      return { rappel: true, msg: `Demain est férié (${ferieLabel(lundiProchain)}) — collecte ${couleurProchain} reportée au mardi. Sortez-la ce soir. 🌙` };
+    }
     return { rappel: true, msg: `Demain c'est lundi ! Sortez la poubelle ${couleurProchain} ce soir. 🌙` };
   }
-  return { rappel: false, msg: `Prochain lundi (dans ${dansN} jours) : poubelle ${couleurProchain}` };
+  const repMsg = collecteProchain.reporte ? ` ⚠️ Lundi férié → collecte reportée au mardi` : ``;
+  return { rappel: false, msg: `Prochain lundi (dans ${dansN} jours) : poubelle ${couleurProchain}${repMsg}` };
 }
 
 // ─── Carburants ───────────────────────────────────────────────────────────────
@@ -1097,6 +1198,151 @@ async function fetchCarburants() {
   }
 }
 
+// ─── Pollen ───────────────────────────────────────────────────────────────────
+async function fetchPollen() {
+  try {
+    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${LAT}&longitude=${LON}&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=Europe%2FParis&forecast_days=1`;
+    const r = await fetch(url);
+    const d = await r.json();
+
+    // Prend l'indice de l'heure courante (ou midi par défaut)
+    const now = new Date();
+    const h = now.getHours();
+    const idx = d.hourly.time.findIndex(t => new Date(t).getHours() === h) ?? 12;
+    const i = idx >= 0 ? idx : 12;
+
+    const pollenTypes = [
+      { nom: "Aulne",     val: d.hourly.alder_pollen?.[i] },
+      { nom: "Bouleau",   val: d.hourly.birch_pollen?.[i] },
+      { nom: "Graminées", val: d.hourly.grass_pollen?.[i] },
+      { nom: "Armoise",   val: d.hourly.mugwort_pollen?.[i] },
+      { nom: "Olivier",   val: d.hourly.olive_pollen?.[i] },
+      { nom: "Ambroisie", val: d.hourly.ragweed_pollen?.[i] },
+    ].filter(p => p.val != null && p.val > 0);
+
+    function niveau(v) {
+      if (v < 10)  return { label: "Faible",     emoji: "🟢" };
+      if (v < 50)  return { label: "Modéré",     emoji: "🟡" };
+      if (v < 200) return { label: "Élevé",      emoji: "🟠" };
+      return            { label: "Très élevé", emoji: "🔴" };
+    }
+
+    if (pollenTypes.length === 0) {
+      return "🟢 Aucun pollen significatif détecté aujourd'hui.";
+    }
+
+    const actifs = pollenTypes
+      .sort((a,b) => b.val - a.val)
+      .slice(0, 3)
+      .map(p => { const n = niveau(p.val); return `${n.emoji} ${p.nom} : ${n.label}`; });
+
+    return actifs.join("  ·  ");
+  } catch(e) {
+    return "Données indisponibles";
+  }
+}
+
+// ─── Qualité de l'air AQI ────────────────────────────────────────────────────
+async function fetchAQI() {
+  try {
+    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${LAT}&longitude=${LON}&hourly=european_aqi&timezone=Europe%2FParis&forecast_days=1`;
+    const r = await fetch(url);
+    const d = await r.json();
+    const now = new Date();
+    const idx = d.hourly.time.findIndex(t => new Date(t).getHours() === now.getHours());
+    const aqi = d.hourly.european_aqi?.[idx >= 0 ? idx : 12];
+    if (aqi == null) return "Données indisponibles";
+    if (aqi <= 20)  return `🟢 Bonne (${aqi}) — air pur`;
+    if (aqi <= 40)  return `🟡 Correcte (${aqi}) — acceptable`;
+    if (aqi <= 60)  return `🟠 Modérée (${aqi}) — personnes sensibles`;
+    if (aqi <= 80)  return `🔴 Mauvaise (${aqi}) — réduire activités extérieures`;
+    if (aqi <= 100) return `🟣 Très mauvaise (${aqi}) — rester à l'intérieur`;
+    return `⚫ Extrêmement mauvaise (${aqi})`;
+  } catch(e) { return "Données indisponibles"; }
+}
+
+// ─── Vigilance météo Météo-France ─────────────────────────────────────────────
+async function fetchVigilance() {
+  try {
+    // API Météo-France vigilance — département 35 (Ille-et-Vilaine)
+    const url = `https://public-api.meteofrance.fr/public/DPVigilance/v1/cartevigilance/encours?token=__Tze4x0qBzPTqPBgcVJFLdh9tHvRfJvD70QN0XlXJnIxUFRPKZg7dHLzFCFHLd2__`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) throw new Error();
+    const d = await r.json();
+    // Cherche le département 35
+    const dep = d?.product?.['text-bloc-items']?.find?.(b => b?.domain_id === '35');
+    if (!dep) return "🟢 Pas de vigilance particulière";
+    const niveaux = { 1:"🟢 Vert", 2:"🟡 Jaune", 3:"🟠 Orange", 4:"🔴 Rouge" };
+    const n = dep.max_color_id ?? 1;
+    return `${niveaux[n] ?? "🟢 Vert"} — ${dep.titrePhenomene ?? "Vigilance météo"}`;
+  } catch(e) {
+    // Fallback : lien direct
+    return "Voir sur vigilance.meteofrance.fr";
+  }
+}
+
+// ─── VigiEau — restrictions sécheresse ───────────────────────────────────────
+async function fetchVigiEau() {
+  try {
+    const url = `https://api.vigieau.gouv.fr/api/zones_alerte/commune/35236`;
+    // Code INSEE Saint-Georges-de-Reintembault = 35236
+    const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) throw new Error();
+    const d = await r.json();
+    if (!d || d.length === 0) return "🟢 Aucune restriction en vigueur";
+    const niveaux = {
+      "vigilance":        "🟡 Vigilance",
+      "alerte":           "🟠 Alerte",
+      "alerte_renforcee": "🔴 Alerte renforcée",
+      "crise":            "⛔ Crise",
+    };
+    const zones = d.map(z => {
+      const niv = niveaux[z.niveauGravite] ?? "⚠️ Restriction";
+      return `${niv} — ${z.nomZone ?? z.typeZone ?? "zone locale"}`;
+    });
+    return zones.join("\n");
+  } catch(e) {
+    return "🟢 Aucune restriction en vigueur";
+  }
+}
+
+// ─── Marchés locaux ───────────────────────────────────────────────────────────
+function getMarchesAujourdhui() {
+  const MARCHES = [
+    { jour: 1, nom: "Marché de Saint-James",         horaire: "8h–12h30", lieu: "Rue Foch & Av. De Gaulle", dist: "~15 km" },
+    { jour: 5, nom: "Marché de Louvigné-du-Désert",  horaire: "7h30–13h", lieu: "Place Charles de Gaulle",  dist: "~8 km"  },
+  ];
+  const today = new Date().getDay(); // 0=dim, 1=lun ...
+  const today_marches = MARCHES.filter(m => m.jour === today);
+  if (today_marches.length === 0) {
+    // Cherche le prochain
+    const sorted = [...MARCHES].sort((a,b) => {
+      const da = (a.jour - today + 7) % 7 || 7;
+      const db = (b.jour - today + 7) % 7 || 7;
+      return da - db;
+    });
+    const next = sorted[0];
+    const jours = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
+    return `Pas de marché aujourd'hui. Prochain : ${next.nom} (${jours[next.jour]}, ${next.horaire})`;
+  }
+  return today_marches.map(m => `🛒 ${m.nom}\n${m.horaire} · ${m.lieu} · ${m.dist}`).join("\n\n");
+}
+
+// ─── Permanences mairie ───────────────────────────────────────────────────────
+function getMairie() {
+  const HORAIRES = [
+    { jours: [1,2,3,4,5], label: "Lundi–Vendredi", horaire: "9h–12h" },
+  ];
+  // Horaires à adapter selon les vrais horaires de la mairie de Saint-Georges-de-Reintembault
+  const today = new Date().getDay();
+  const ouvert = HORAIRES.find(h => h.jours.includes(today));
+  const tel = "02 99 97 30 09";
+  if (ouvert) {
+    return `📞 ${tel}\n✅ Ouverte aujourd'hui : ${ouvert.horaire}`;
+  }
+  return `📞 ${tel}\n❌ Fermée aujourd'hui (week-end)`;
+}
+
 // ─── Météo ────────────────────────────────────────────────────────────────────
 async function fetchMeteo() {
   try {
@@ -1167,7 +1413,7 @@ function getJardinage(mois) {
   return conseils[now.getDate() % conseils.length];
 }
 
-function buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation, carburants) {
+function buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation, carburants, pollen, aqi, vigilance, vigieau) {
   const { jour, date, saint } = dateInfo;
   const { desc, tmax, tmin, vent } = meteo;
 
@@ -1193,6 +1439,32 @@ function buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation
   lines.push(`${jardinage}`);
   lines.push(``);
 
+  if (pollen) {
+    lines.push(`🌿 Pollen du jour : ${pollen}`);
+    lines.push(``);
+  }
+
+  if (aqi && !aqi.includes("indisponible")) {
+    lines.push(`💨 Qualité de l'air : ${aqi}`);
+    lines.push(``);
+  }
+
+  if (vigilance && !vigilance.includes("Voir sur")) {
+    lines.push(`⚠️ Vigilance météo 35 : ${vigilance}`);
+    lines.push(``);
+  }
+
+  if (vigieau && !vigieau.includes("Aucune restriction")) {
+    lines.push(`💧 Restrictions d'eau : ${vigieau}`);
+    lines.push(``);
+  }
+
+  const marche = getMarchesAujourdhui();
+  if (marche && !marche.startsWith("Pas de")) {
+    lines.push(`🛒 ${marche}`);
+    lines.push(``);
+  }
+
   if (poubelles.rappel || poubelles.msg.includes("ce soir") || poubelles.msg.includes("aujourd'hui")) {
     lines.push(`🗑️ ${poubelles.msg}`);
     lines.push(``);
@@ -1204,7 +1476,6 @@ function buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation
   lines.push(``);
   if (carburants && Object.keys(carburants).length > 0) {
     lines.push(`⛽ Carburants les moins chers (rayon 20 km) :`);
-    lines.push(`💡 Les stations Total restent les moins chères pour le gazole (plafonnées). Gazole Premium au même prix que le normal à 2.09€.`);
     for (const [label, info] of Object.entries(carburants)) {
       lines.push(`${info.emoji} ${label} — ${info.prix}€/L  📍 ${info.ville} (${info.dist} km)`);
     }
@@ -1271,6 +1542,48 @@ async function captureImage() {
         sub: []
       },
       {
+        bg: "rgba(180,220,50,0.15)",
+        icon: "🌿",
+        label: "Indice pollen",
+        lines: [document.getElementById("pollen-val").textContent.trim()],
+        sub: []
+      },
+      {
+        bg: "rgba(40,120,200,0.12)",
+        icon: "💨",
+        label: "Qualité de l'air (AQI)",
+        lines: [document.getElementById("aqi-val").textContent.trim()],
+        sub: []
+      },
+      {
+        bg: "rgba(255,160,0,0.15)",
+        icon: "⚠️",
+        label: "Vigilance météo Ille-et-Vilaine",
+        lines: [document.getElementById("vigilance-val").textContent.trim()],
+        sub: []
+      },
+      {
+        bg: "rgba(0,100,60,0.12)",
+        icon: "💧",
+        label: "Restrictions d'eau (VigiEau)",
+        lines: [document.getElementById("vigieau-val").textContent.trim()],
+        sub: []
+      },
+      {
+        bg: "rgba(255,200,0,0.15)",
+        icon: "🛒",
+        label: "Marchés proches",
+        lines: document.getElementById("marche-val").textContent.trim().split("\n").filter(Boolean),
+        sub: []
+      },
+      {
+        bg: "rgba(60,60,180,0.12)",
+        icon: "🏛️",
+        label: "Mairie de Saint-Georges",
+        lines: document.getElementById("mairie-val").textContent.trim().split("\n").filter(Boolean),
+        sub: []
+      },
+      {
         bg: "rgba(200,60,60,0.10)",
         icon: "🗑️",
         label: "Collecte des poubelles",
@@ -1288,12 +1601,7 @@ async function captureImage() {
         bg: "rgba(220,50,50,0.10)",
         icon: "⛽",
         label: "Carburants moins chers — rayon 20 km",
-        lines: [
-          "💡 Les stations Total restent les moins chères pour le gazole",
-          "car elles sont plafonnées. Le Gazole Premium est au même prix",
-          "que le normal à 2.09€.",
-          ...((document.getElementById("carburant-val").innerText || "").trim().split("\n").filter(Boolean))
-        ],
+        lines: (document.getElementById("carburant-val").innerText || "").trim().split("\n").filter(Boolean),
         sub: ["À vérifier sur prix-carburants.gouv.fr (prix mis à jour le matin)"]
       },
     ];
@@ -1542,10 +1850,21 @@ async function loadAll() {
   document.getElementById("citation-val").textContent = `« ${citation.texte} »`;
   document.getElementById("citation-auteur").textContent = `— ${citation.auteur}`;
 
+  document.getElementById("pollen-val").innerHTML = `<span class="loading">Récupération en cours...</span>`;
+  document.getElementById("aqi-val").innerHTML = `<span class="loading">Récupération en cours...</span>`;
+  document.getElementById("vigilance-val").innerHTML = `<span class="loading">Récupération en cours...</span>`;
+  document.getElementById("vigieau-val").innerHTML = `<span class="loading">Récupération en cours...</span>`;
   document.getElementById("carburant-val").innerHTML = `<span class="loading">Récupération en cours...</span>`;
 
-  // Météo + soleil + carburants (async)
-  const [meteo, soleil, carburants] = await Promise.all([fetchMeteo(), getSoleil(), fetchCarburants()]);
+  // Éléments synchrones
+  document.getElementById("marche-val").textContent = getMarchesAujourdhui();
+  document.getElementById("mairie-val").textContent = getMairie();
+
+  // Météo + soleil + carburants + pollen + AQI + vigilance + vigieau (async)
+  const [meteo, soleil, carburants, pollen, aqi, vigilance, vigieau] = await Promise.all([
+    fetchMeteo(), getSoleil(), fetchCarburants(), fetchPollen(),
+    fetchAQI(), fetchVigilance(), fetchVigiEau()
+  ]);
 
   document.getElementById("meteo-val").textContent = meteo.desc;
   document.getElementById("meteo-sub").textContent = `🌡️ ${meteo.tmin}°C / ${meteo.tmax}°C  •  💨 Vent max : ${meteo.vent} km/h`;
@@ -1556,6 +1875,10 @@ async function loadAll() {
       `🌆 <strong>Soir (19h) :</strong> ${meteo.soir.desc}, ${meteo.soir.temp}°C, 🌧️ ${meteo.soir.pluie}% de pluie`;
   }
   document.getElementById("soleil-val").textContent = `🌅 Lever : ${soleil.lever}  •  🌇 Coucher : ${soleil.coucher}`;
+  document.getElementById("pollen-val").textContent = pollen;
+  document.getElementById("aqi-val").textContent = aqi;
+  document.getElementById("vigilance-val").textContent = vigilance;
+  document.getElementById("vigieau-val").textContent = vigieau;
 
   if (carburants && Object.keys(carburants).length > 0) {
     const lines = Object.entries(carburants).map(([label, info]) =>
@@ -1566,7 +1889,7 @@ async function loadAll() {
     document.getElementById("carburant-val").textContent = "Données indisponibles";
   }
 
-  const post = buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation, carburants);
+  const post = buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation, carburants, pollen, aqi, vigilance, vigieau);
   document.getElementById("post-preview").textContent = post;
 
   ri.classList.remove("spinning");
