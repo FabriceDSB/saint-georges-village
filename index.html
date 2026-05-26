@@ -1272,12 +1272,12 @@ async function fetchVigilance() {
     const PHENOM = { 1:"Vent violent", 2:"Pluie-inondation", 3:"Orages", 4:"Inondation", 5:"Neige-verglas", 6:"Canicule", 7:"Grand froid", 8:"Avalanches", 9:"Vagues-submersion" };
     const NIVEAUX = { 1:"🟢 Vert", 2:"🟡 Jaune", 3:"🟠 Orange", 4:"🔴 Rouge" };
     const now = Math.floor(Date.now() / 1000);
-    if (d.end_validity_time u0026u0026 d.end_validity_time < now) return "🟢 Pas de vigilance particulière";
+    if (d.end_validity_time && d.end_validity_time < now) return "🟢 Pas de vigilance particulière";
     const alertes = (d.phenomenons_max_colors ?? []).filter(p => p.phenomenon_max_color_id > 1).map(p => `${NIVEAUX[p.phenomenon_max_color_id] ?? "⚠️"} ${PHENOM[p.phenomenon_id] ?? "Phénomène"}`);
     return alertes.length ? alertes.join(" · ") : "🟢 Pas de vigilance particulière";
   } catch(e) {
     try {
-      const url2 = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}u0026longitude=${LON}u0026daily=precipitation_sum,windspeed_10m_max,weathercodeu0026timezone=Europe%2FParisu0026forecast_days=1`;
+      const url2 = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=precipitation_sum,windspeed_10m_max,weathercode&timezone=Europe%2FParis&forecast_days=1`;
       const r2 = await fetch(url2, { signal: AbortSignal.timeout(6000) });
       const d2 = await r2.json();
       const pluie = d2.daily.precipitation_sum?.[0] ?? 0;
