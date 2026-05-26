@@ -1263,69 +1263,70 @@ async function fetchAQI() {
 
 // ─── Vigilance météo ─────────────────────────────────────────────────────────
 async function fetchVigilance() {
-  const NIVEAUX = { "vert":"🟢 Vert", "jaune":"🟡 Jaune", "orange":"🟠 Orange", "rouge":"🔴 Rouge" };
-  const PHENOM_FR = {
-    "vent":"Vent violent", "pluie":"Pluie-inondation", "orage":"Orages",
-    "inondation":"Inondation", "neige":"Neige-verglas", "canicule":"Canicule",
-    "grand-froid":"Grand froid", "avalanche":"Avalanches", "vague":"Vagues-submersion"
+  const NIVEAUX = { 1:"🟢 Vert", 2:"🟡 Jaune", 3:"🟠 Orange", 4:"🔴 Rouge" };
+  const PHENOM  = {
+    1:"Vent violent", 2:"Pluie-inondation", 3:"Orages",
+    4:"Inondation",  5:"Neige-verglas",    6:"Canicule",
+    7:"Grand froid", 8:"Avalanches",        9:"Vagues-submersion"
   };
 
+  // Fichier JSON léger publié par Météo-France pour alimenter leur carte (sans token, sans auth)
+  const JSON_URL = "https://vigilance.meteofrance.fr/data/vigilance_dep.json";
+  const PROXY    = `https://api.allorigins.win/get?url=${encodeURIComponent(JSON_URL)}`;
+
   try {
-    // Scrape la page officielle via allorigins (pas de token, pas de CORS)
-    const pageUrl = "https://vigilance.meteofrance.fr/fr/ille-et-vilaine";
-    const proxy   = `https://api.allorigins.win/get?url=${encodeURIComponent(pageUrl)}`;
-    const r = await fetch(proxy, { signal: AbortSignal.timeout(10000) });
-    if (!r.ok) throw new Error("allorigins " + r.status);
-    const { contents } = await r.json();
-    if (!contents) throw new Error("empty");
+    const r = await fetch(PROXY, { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const wrapper = await r.json();
+    if (!wrapper.contents) throw new Error("empty");
 
-    // Cherche les classes CSS de couleur : "picto-XXX" ou "color-XXX" dans le HTML
-    const alertes = [];
+    const data = JSON.parse(wrapper.contents);
+    // Structure attendue : { "35": { "echeance": [...], "phenomenes": [...] } }
+    // ou tableau plat selon la version
+    console.log("[Vigilance JSON keys]", Object.keys(data).slice(0,5));
 
-    // Pattern 1 : balises avec class contenant "orange", "rouge", "jaune"
-    const colorMatches = [...contents.matchAll(/class="[^"]*\b(orange|rouge|jaune)\b[^"]*"[^>]*>([^<]{3,60})</gi)];
-    for (const m of colorMatches) {
-      const couleur = m[1].toLowerCase();
-      const texte   = m[2].trim().toLowerCase();
-      // Cherche un phénomène dans le texte adjacent
-      for (const [key, label] of Object.entries(PHENOM_FR)) {
-        if (texte.includes(key)) {
-          alertes.push(`${NIVEAUX[couleur]} ${label}`);
-          break;
-        }
-      }
-      // Si pas de phénomène trouvé mais couleur importante, ajoute quand même
-      if (alertes.length === 0 && (couleur === "orange" || couleur === "rouge")) {
-        alertes.push(`${NIVEAUX[couleur]} Vigilance active`);
-      }
+    // Cherche le département 35 dans toutes les structures possibles
+    let dep = data["35"] ?? data.deps?.["35"] ?? null;
+
+    // Si c'est un tableau de départements
+    if (!dep && Array.isArray(data)) {
+      dep = data.find(d => d.dep === "35" || d.num_dep === "35" || d.department === "35");
+    }
+    if (!dep && data.product) {
+      dep = data.product["35"] ?? null;
     }
 
-    // Pattern 2 : cherche "canicule", "orange" dans le texte brut (cas simple)
-    if (alertes.length === 0) {
-      const text = contents.toLowerCase();
-      const couleurs = ["rouge","orange","jaune"];
-      for (const c of couleurs) {
-        if (text.includes(c)) {
-          for (const [key, label] of Object.entries(PHENOM_FR)) {
-            const idx_c = text.indexOf(c);
-            const idx_p = text.indexOf(key);
-            if (idx_p >= 0 && Math.abs(idx_c - idx_p) < 500) {
-              alertes.push(`${NIVEAUX[c]} ${label}`);
-              break;
+    if (!dep) {
+      // Fallback : cherche "35" et "orange|rouge|canicule" dans le JSON brut
+      const txt = wrapper.contents.toLowerCase();
+      const idx35 = txt.indexOf('"35"');
+      if (idx35 >= 0) {
+        const chunk = txt.slice(idx35, idx35 + 300);
+        const niveaux_txt = ["rouge","orange","jaune"];
+        const phenoms_txt = ["canicule","vent","orage","neige","pluie","inondation","grand-froid","avalanche"];
+        for (const niv of niveaux_txt) {
+          if (chunk.includes(niv)) {
+            for (const ph of phenoms_txt) {
+              if (chunk.includes(ph)) {
+                return `${niv === "rouge" ? "🔴 Rouge" : niv === "orange" ? "🟠 Orange" : "🟡 Jaune"} — ${ph.charAt(0).toUpperCase() + ph.slice(1)}`;
+              }
             }
-          }
-          if (alertes.length > 0) break;
-          if (c !== "jaune") {
-            alertes.push(`${NIVEAUX[c]} Vigilance active — voir vigilance.meteofrance.fr`);
-            break;
+            return `${niv === "rouge" ? "🔴 Rouge" : niv === "orange" ? "🟠 Orange" : "🟡 Jaune"} — Vigilance active`;
           }
         }
       }
+      return "🟢 Pas de vigilance particulière";
     }
 
-    return alertes.length
-      ? [...new Set(alertes)].join(" · ")
-      : "🟢 Pas de vigilance particulière";
+    // Parse la structure du département trouvé
+    const phenomenes = dep.phenomenes ?? dep.phenomenons_max_colors ?? dep.echeance ?? [];
+    const alertes = [];
+    for (const p of phenomenes) {
+      const niv  = p.phenomenon_max_color_id ?? p.couleur ?? p.niveau ?? p.color_id ?? 1;
+      const id   = p.phenomenon_id ?? p.phenom_id ?? p.id ?? 0;
+      if (niv > 1) alertes.push(`${NIVEAUX[niv] ?? "⚠️"} ${PHENOM[id] ?? "Phénomène"}`);
+    }
+    return alertes.length ? alertes.join(" · ") : "🟢 Pas de vigilance particulière";
 
   } catch(e) {
     console.warn("[Vigilance erreur]", e.message);
@@ -1336,8 +1337,8 @@ async function fetchVigilance() {
 // ─── VigiEau — restrictions sécheresse ───────────────────────────────────────
 async function fetchVigiEau() {
   try {
-    const url = `https://api.vigieau.gouv.fr/api/zones_alerte/commune/35236`;
-    // Code INSEE Saint-Georges-de-Reintembault = 35236
+    const url = `https://api.vigieau.gouv.fr/api/zones_alerte/commune/35271`;
+    // Code INSEE Saint-Georges-de-Reintembault = 35271
     const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!r.ok) throw new Error();
     const d = await r.json();
