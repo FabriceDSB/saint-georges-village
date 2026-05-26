@@ -1263,35 +1263,55 @@ async function fetchAQI() {
 
 // ─── Vigilance météo ─────────────────────────────────────────────────────────
 async function fetchVigilance() {
-  try {
-    // API interne Météo-France (utilisée par les applis officielles)
-    const url = `https://webservice.meteofrance.com/warning/currentphenomenons?token=__Tze4x0qBzPTqPBgcVJFLdh9tHvRfJvD70QN0XlXJnIxUFRPKZg7dHLzFCFHLd2__&domain=35&depth=0`;
-    const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    const d = await r.json();
-    const PHENOM = { 1:"Vent violent", 2:"Pluie-inondation", 3:"Orages", 4:"Inondation", 5:"Neige-verglas", 6:"Canicule", 7:"Grand froid", 8:"Avalanches", 9:"Vagues-submersion" };
-    const NIVEAUX = { 1:"🟢 Vert", 2:"🟡 Jaune", 3:"🟠 Orange", 4:"🔴 Rouge" };
+  const PHENOM  = { 1:"Vent violent", 2:"Pluie-inondation", 3:"Orages", 4:"Inondation", 5:"Neige-verglas", 6:"Canicule", 7:"Grand froid", 8:"Avalanches", 9:"Vagues-submersion" };
+  const NIVEAUX = { 1:"🟢 Vert", 2:"🟡 Jaune", 3:"🟠 Orange", 4:"🔴 Rouge" };
+
+  function parseVigilance(d) {
     const now = Math.floor(Date.now() / 1000);
     if (d.end_validity_time && d.end_validity_time < now) return "🟢 Pas de vigilance particulière";
-    const alertes = (d.phenomenons_max_colors ?? []).filter(p => p.phenomenon_max_color_id > 1).map(p => `${NIVEAUX[p.phenomenon_max_color_id] ?? "⚠️"} ${PHENOM[p.phenomenon_id] ?? "Phénomène"}`);
+    const alertes = (d.phenomenons_max_colors ?? [])
+      .filter(p => p.phenomenon_max_color_id > 1)
+      .map(p => `${NIVEAUX[p.phenomenon_max_color_id] ?? "⚠️"} ${PHENOM[p.phenomenon_id] ?? "Phénomène"}`);
+    return alertes.length ? alertes.join(" · ") : "🟢 Pas de vigilance particulière";
+  }
+
+  const MF_URL = `https://webservice.meteofrance.com/warning/currentphenomenons?token=__Tze4x0qBzPTqPBgcVJFLdh9tHvRfJvD70QN0XlXJnIxUFRPKZg7dHLzFCFHLd2__&domain=35&depth=0`;
+
+  // Tentative 1 : appel direct (fonctionne si CORS ok)
+  try {
+    const r = await fetch(MF_URL, { signal: AbortSignal.timeout(6000) });
+    if (r.ok) return parseVigilance(await r.json());
+  } catch(e) {}
+
+  // Tentative 2 : via allorigins.win (contourne CORS)
+  try {
+    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(MF_URL)}`;
+    const r = await fetch(proxy, { signal: AbortSignal.timeout(8000) });
+    if (r.ok) {
+      const wrapper = await r.json();
+      const d = JSON.parse(wrapper.contents);
+      return parseVigilance(d);
+    }
+  } catch(e) {}
+
+  // Tentative 3 : fallback estimation Open-Meteo
+  try {
+    const url3 = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=precipitation_sum,windspeed_10m_max,weathercode&timezone=Europe%2FParis&forecast_days=1`;
+    const r3 = await fetch(url3, { signal: AbortSignal.timeout(6000) });
+    const d3 = await r3.json();
+    const pluie = d3.daily.precipitation_sum?.[0] ?? 0;
+    const vent  = d3.daily.windspeed_10m_max?.[0] ?? 0;
+    const code  = d3.daily.weathercode?.[0] ?? 0;
+    const alertes = [];
+    if (vent >= 90)       alertes.push("🔴 Vent violent (" + vent + " km/h)");
+    else if (vent >= 70)  alertes.push("🟠 Vent fort (" + vent + " km/h)");
+    if (pluie >= 50)      alertes.push("🔴 Pluies abondantes (" + pluie + " mm)");
+    else if (pluie >= 20) alertes.push("🟠 Pluies importantes (" + pluie + " mm)");
+    if ([95,96,99].includes(code)) alertes.push("⛈️ Orages prévus");
+    if ([71,72,73,74,75,76,77,85,86].includes(code)) alertes.push("❄️ Neige ou verglas");
     return alertes.length ? alertes.join(" · ") : "🟢 Pas de vigilance particulière";
   } catch(e) {
-    try {
-      const url2 = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=precipitation_sum,windspeed_10m_max,weathercode&timezone=Europe%2FParis&forecast_days=1`;
-      const r2 = await fetch(url2, { signal: AbortSignal.timeout(6000) });
-      const d2 = await r2.json();
-      const pluie = d2.daily.precipitation_sum?.[0] ?? 0;
-      const vent = d2.daily.windspeed_10m_max?.[0] ?? 0;
-      const code = d2.daily.weathercode?.[0] ?? 0;
-      const alertes = [];
-      if (vent >= 90) alertes.push("🔴 Vent violent (" + vent + " km/h)");
-      else if (vent >= 70) alertes.push("🟠 Vent fort (" + vent + " km/h)");
-      if (pluie >= 50) alertes.push("🔴 Pluies abondantes (" + pluie + " mm)");
-      else if (pluie >= 20) alertes.push("🟠 Pluies importantes (" + pluie + " mm)");
-      if ([95,96,99].includes(code)) alertes.push("⛈️ Orages prévus");
-      if ([71,72,73,74,75,76,77,85,86].includes(code)) alertes.push("❄️ Neige ou verglas");
-      return alertes.length > 0 ? alertes.join(" · ") : "🟢 Pas de vigilance particulière";
-    } catch(e2) { return "🟢 Pas de vigilance particulière"; }
+    return "🟢 Pas de vigilance particulière";
   }
 }
 
