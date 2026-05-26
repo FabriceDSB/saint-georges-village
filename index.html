@@ -1456,17 +1456,11 @@ function buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation
   lines.push(`${jardinage}`);
   lines.push(``);
 
-  if (pollen) {
-    lines.push(`🌿 Pollen du jour : ${pollen}`);
-    lines.push(``);
-  }
+  lines.push(`🌿 Pollen : ${pollen}`);
+  lines.push(`💨 Qualité de l'air : ${aqi}`);
+  lines.push(``);
 
-  if (aqi && !aqi.includes("indisponible")) {
-    lines.push(`💨 Qualité de l'air : ${aqi}`);
-    lines.push(``);
-  }
-
-  if (vigilance && !vigilance.includes("Voir sur")) {
+  if (vigilance && !vigilance.includes("Pas de vigilance")) {
     lines.push(`⚠️ Vigilance météo 35 : ${vigilance}`);
     lines.push(``);
   }
@@ -1477,10 +1471,11 @@ function buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation
   }
 
   const marche = getMarchesAujourdhui();
-  if (marche && !marche.startsWith("Pas de")) {
-    lines.push(`🛒 ${marche}`);
-    lines.push(``);
-  }
+  lines.push(`🛒 Marchés aujourd'hui : ${marche}`);
+  lines.push(``);
+
+  lines.push(`🏛️ Mairie de Saint-Georges : ${getMairie().replace(/\n/g, " · ")}`);
+  lines.push(``);
 
   if (poubelles.rappel || poubelles.msg.includes("ce soir") || poubelles.msg.includes("aujourd'hui")) {
     lines.push(`🗑️ ${poubelles.msg}`);
