@@ -1263,56 +1263,73 @@ async function fetchAQI() {
 
 // ─── Vigilance météo ─────────────────────────────────────────────────────────
 async function fetchVigilance() {
-  const PHENOM  = { 1:"Vent violent", 2:"Pluie-inondation", 3:"Orages", 4:"Inondation", 5:"Neige-verglas", 6:"Canicule", 7:"Grand froid", 8:"Avalanches", 9:"Vagues-submersion" };
-  const NIVEAUX = { 1:"🟢 Vert", 2:"🟡 Jaune", 3:"🟠 Orange", 4:"🔴 Rouge" };
+  const NIVEAUX = { "vert":"🟢 Vert", "jaune":"🟡 Jaune", "orange":"🟠 Orange", "rouge":"🔴 Rouge" };
+  const PHENOM_FR = {
+    "vent":"Vent violent", "pluie":"Pluie-inondation", "orage":"Orages",
+    "inondation":"Inondation", "neige":"Neige-verglas", "canicule":"Canicule",
+    "grand-froid":"Grand froid", "avalanche":"Avalanches", "vague":"Vagues-submersion"
+  };
 
-  function parseVigilance(d) {
-    const now = Math.floor(Date.now() / 1000);
-    if (d.end_validity_time && d.end_validity_time < now) return "🟢 Pas de vigilance particulière";
-    const alertes = (d.phenomenons_max_colors ?? [])
-      .filter(p => p.phenomenon_max_color_id > 1)
-      .map(p => `${NIVEAUX[p.phenomenon_max_color_id] ?? "⚠️"} ${PHENOM[p.phenomenon_id] ?? "Phénomène"}`);
-    return alertes.length ? alertes.join(" · ") : "🟢 Pas de vigilance particulière";
-  }
-
-  const MF_URL = `https://webservice.meteofrance.com/warning/currentphenomenons?token=__Tze4x0qBzPTqPBgcVJFLdh9tHvRfJvD70QN0XlXJnIxUFRPKZg7dHLzFCFHLd2__&domain=35&depth=0`;
-
-  // Tentative 1 : appel direct (fonctionne si CORS ok)
   try {
-    const r = await fetch(MF_URL, { signal: AbortSignal.timeout(6000) });
-    if (r.ok) return parseVigilance(await r.json());
-  } catch(e) {}
+    // Scrape la page officielle via allorigins (pas de token, pas de CORS)
+    const pageUrl = "https://vigilance.meteofrance.fr/fr/ille-et-vilaine";
+    const proxy   = `https://api.allorigins.win/get?url=${encodeURIComponent(pageUrl)}`;
+    const r = await fetch(proxy, { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) throw new Error("allorigins " + r.status);
+    const { contents } = await r.json();
+    if (!contents) throw new Error("empty");
 
-  // Tentative 2 : via allorigins.win (contourne CORS)
-  try {
-    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(MF_URL)}`;
-    const r = await fetch(proxy, { signal: AbortSignal.timeout(8000) });
-    if (r.ok) {
-      const wrapper = await r.json();
-      console.log("[Vigilance allorigins]", wrapper.contents?.slice(0,200));
-      const d = JSON.parse(wrapper.contents);
-      return parseVigilance(d);
-    }
-  } catch(e) { console.warn("[Vigilance allorigins erreur]", e.message); }
-
-  // Tentative 3 : fallback estimation Open-Meteo
-  try {
-    const url3 = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=precipitation_sum,windspeed_10m_max,weathercode&timezone=Europe%2FParis&forecast_days=1`;
-    const r3 = await fetch(url3, { signal: AbortSignal.timeout(6000) });
-    const d3 = await r3.json();
-    const pluie = d3.daily.precipitation_sum?.[0] ?? 0;
-    const vent  = d3.daily.windspeed_10m_max?.[0] ?? 0;
-    const code  = d3.daily.weathercode?.[0] ?? 0;
+    // Cherche les classes CSS de couleur : "picto-XXX" ou "color-XXX" dans le HTML
     const alertes = [];
-    if (vent >= 90)       alertes.push("🔴 Vent violent (" + vent + " km/h)");
-    else if (vent >= 70)  alertes.push("🟠 Vent fort (" + vent + " km/h)");
-    if (pluie >= 50)      alertes.push("🔴 Pluies abondantes (" + pluie + " mm)");
-    else if (pluie >= 20) alertes.push("🟠 Pluies importantes (" + pluie + " mm)");
-    if ([95,96,99].includes(code)) alertes.push("⛈️ Orages prévus");
-    if ([71,72,73,74,75,76,77,85,86].includes(code)) alertes.push("❄️ Neige ou verglas");
-    return alertes.length ? alertes.join(" · ") : "🟢 Pas de vigilance particulière";
+
+    // Pattern 1 : balises avec class contenant "orange", "rouge", "jaune"
+    const colorMatches = [...contents.matchAll(/class="[^"]*\b(orange|rouge|jaune)\b[^"]*"[^>]*>([^<]{3,60})</gi)];
+    for (const m of colorMatches) {
+      const couleur = m[1].toLowerCase();
+      const texte   = m[2].trim().toLowerCase();
+      // Cherche un phénomène dans le texte adjacent
+      for (const [key, label] of Object.entries(PHENOM_FR)) {
+        if (texte.includes(key)) {
+          alertes.push(`${NIVEAUX[couleur]} ${label}`);
+          break;
+        }
+      }
+      // Si pas de phénomène trouvé mais couleur importante, ajoute quand même
+      if (alertes.length === 0 && (couleur === "orange" || couleur === "rouge")) {
+        alertes.push(`${NIVEAUX[couleur]} Vigilance active`);
+      }
+    }
+
+    // Pattern 2 : cherche "canicule", "orange" dans le texte brut (cas simple)
+    if (alertes.length === 0) {
+      const text = contents.toLowerCase();
+      const couleurs = ["rouge","orange","jaune"];
+      for (const c of couleurs) {
+        if (text.includes(c)) {
+          for (const [key, label] of Object.entries(PHENOM_FR)) {
+            const idx_c = text.indexOf(c);
+            const idx_p = text.indexOf(key);
+            if (idx_p >= 0 && Math.abs(idx_c - idx_p) < 500) {
+              alertes.push(`${NIVEAUX[c]} ${label}`);
+              break;
+            }
+          }
+          if (alertes.length > 0) break;
+          if (c !== "jaune") {
+            alertes.push(`${NIVEAUX[c]} Vigilance active — voir vigilance.meteofrance.fr`);
+            break;
+          }
+        }
+      }
+    }
+
+    return alertes.length
+      ? [...new Set(alertes)].join(" · ")
+      : "🟢 Pas de vigilance particulière";
+
   } catch(e) {
-    return "🟢 Pas de vigilance particulière";
+    console.warn("[Vigilance erreur]", e.message);
+    return "⚠️ Voir vigilance.meteofrance.fr/fr/ille-et-vilaine";
   }
 }
 
