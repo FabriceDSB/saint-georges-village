@@ -1907,3 +1907,25 @@ async function loadAll() {
   }
 
   const post = buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation, carburants, pollen, aqi, vigilance, vigieau);
+  document.getElementById("post-preview").textContent = post;
+
+  ri.classList.remove("spinning");
+}
+
+function copyPost() {
+  const text = document.getElementById("post-preview").textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById("copy-btn");
+    btn.innerHTML = "<span>✅</span> Copié !";
+    btn.classList.add("copied");
+    setTimeout(() => {
+      btn.innerHTML = "<span>📋</span> Copier le post";
+      btn.classList.remove("copied");
+    }, 2500);
+  });
+}
+
+loadAll();
+</script>
+</body>
+</html>
