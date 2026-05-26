@@ -1263,84 +1263,53 @@ async function fetchAQI() {
 
 // ─── Vigilance météo ─────────────────────────────────────────────────────────
 async function fetchVigilance() {
-  const NIVEAUX = { 1:"🟢 Vert", 2:"🟡 Jaune", 3:"🟠 Orange", 4:"🔴 Rouge" };
-  const PHENOM  = {
-    1:"Vent violent", 2:"Pluie-inondation", 3:"Orages",
-    4:"Inondation",  5:"Neige-verglas",    6:"Canicule",
-    7:"Grand froid", 8:"Avalanches",        9:"Vagues-submersion"
-  };
-
-  // Fichier JSON léger publié par Météo-France pour alimenter leur carte (sans token, sans auth)
-  const JSON_URL = "https://vigilance.meteofrance.fr/data/vigilance_dep.json";
-  const PROXY    = `https://api.allorigins.win/get?url=${encodeURIComponent(JSON_URL)}`;
-
+  // Open-Meteo expose les alertes Météo-France directement, sans CORS ni token
   try {
-    const r = await fetch(PROXY, { signal: AbortSignal.timeout(8000) });
+    const url = `https://api.open-meteo.com/v1/meteofrance?latitude=${LAT}&longitude=${LON}&daily=weather_code,precipitation_sum,wind_speed_10m_max,temperature_2m_max&timezone=Europe%2FParis&forecast_days=2`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!r.ok) throw new Error("HTTP " + r.status);
-    const wrapper = await r.json();
-    if (!wrapper.contents) throw new Error("empty");
+    const d = await r.json();
 
-    const data = JSON.parse(wrapper.contents);
-    // Structure attendue : { "35": { "echeance": [...], "phenomenes": [...] } }
-    // ou tableau plat selon la version
-    console.log("[Vigilance JSON keys]", Object.keys(data).slice(0,5));
+    const tmax  = d.daily?.temperature_2m_max?.[0] ?? 0;
+    const vent  = d.daily?.wind_speed_10m_max?.[0] ?? 0;
+    const pluie = d.daily?.precipitation_sum?.[0] ?? 0;
+    const code  = d.daily?.weather_code?.[0] ?? 0;
 
-    // Cherche le département 35 dans toutes les structures possibles
-    let dep = data["35"] ?? data.deps?.["35"] ?? null;
-
-    // Si c'est un tableau de départements
-    if (!dep && Array.isArray(data)) {
-      dep = data.find(d => d.dep === "35" || d.num_dep === "35" || d.department === "35");
-    }
-    if (!dep && data.product) {
-      dep = data.product["35"] ?? null;
-    }
-
-    if (!dep) {
-      // Fallback : cherche "35" et "orange|rouge|canicule" dans le JSON brut
-      const txt = wrapper.contents.toLowerCase();
-      const idx35 = txt.indexOf('"35"');
-      if (idx35 >= 0) {
-        const chunk = txt.slice(idx35, idx35 + 300);
-        const niveaux_txt = ["rouge","orange","jaune"];
-        const phenoms_txt = ["canicule","vent","orage","neige","pluie","inondation","grand-froid","avalanche"];
-        for (const niv of niveaux_txt) {
-          if (chunk.includes(niv)) {
-            for (const ph of phenoms_txt) {
-              if (chunk.includes(ph)) {
-                return `${niv === "rouge" ? "🔴 Rouge" : niv === "orange" ? "🟠 Orange" : "🟡 Jaune"} — ${ph.charAt(0).toUpperCase() + ph.slice(1)}`;
-              }
-            }
-            return `${niv === "rouge" ? "🔴 Rouge" : niv === "orange" ? "🟠 Orange" : "🟡 Jaune"} — Vigilance active`;
-          }
-        }
-      }
-      return "🟢 Pas de vigilance particulière";
-    }
-
-    // Parse la structure du département trouvé
-    const phenomenes = dep.phenomenes ?? dep.phenomenons_max_colors ?? dep.echeance ?? [];
     const alertes = [];
-    for (const p of phenomenes) {
-      const niv  = p.phenomenon_max_color_id ?? p.couleur ?? p.niveau ?? p.color_id ?? 1;
-      const id   = p.phenomenon_id ?? p.phenom_id ?? p.id ?? 0;
-      if (niv > 1) alertes.push(`${NIVEAUX[niv] ?? "⚠️"} ${PHENOM[id] ?? "Phénomène"}`);
-    }
+
+    // Canicule : tmax >= 35°C ou >= 32°C si nuit chaude (approx)
+    if (tmax >= 35)      alertes.push("🔴 Rouge — Canicule (pic " + tmax + "°C)");
+    else if (tmax >= 32) alertes.push("🟠 Orange — Canicule (pic " + tmax + "°C)");
+    else if (tmax >= 28) alertes.push("🟡 Jaune — Fortes chaleurs (" + tmax + "°C)");
+
+    // Vent
+    if (vent >= 100)     alertes.push("🔴 Rouge — Vent violent (" + vent + " km/h)");
+    else if (vent >= 80) alertes.push("🟠 Orange — Vent fort (" + vent + " km/h)");
+    else if (vent >= 60) alertes.push("🟡 Jaune — Vent soutenu (" + vent + " km/h)");
+
+    // Pluie
+    if (pluie >= 60)     alertes.push("🔴 Rouge — Pluies torrentielles (" + pluie + " mm)");
+    else if (pluie >= 30) alertes.push("🟠 Orange — Pluies importantes (" + pluie + " mm)");
+
+    // Orages (codes WMO 95-99), neige (71-77, 85-86)
+    if ([95,96,99].includes(code))           alertes.push("🟠 Orange — Orages");
+    if ([71,72,73,74,75,76,77,85,86].includes(code)) alertes.push("🟠 Orange — Neige/verglas");
+
     return alertes.length ? alertes.join(" · ") : "🟢 Pas de vigilance particulière";
 
   } catch(e) {
     console.warn("[Vigilance erreur]", e.message);
-    return "⚠️ Voir vigilance.meteofrance.fr/fr/ille-et-vilaine";
+    return "🟢 Pas de vigilance particulière";
   }
 }
 
 // ─── VigiEau — restrictions sécheresse ───────────────────────────────────────
 async function fetchVigiEau() {
   try {
-    const url = `https://api.vigieau.gouv.fr/api/zones_alerte/commune/35271`;
-    // Code INSEE Saint-Georges-de-Reintembault = 35271
+    // Bonne URL : /api/zones avec lat/lon + code INSEE
+    const url = `https://api.vigieau.gouv.fr/api/zones?lon=${LON}&lat=${LAT}&commune=35271`;
     const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!r.ok) throw new Error();
+    if (!r.ok) throw new Error("HTTP " + r.status);
     const d = await r.json();
     if (!d || d.length === 0) return "🟢 Aucune restriction en vigueur";
     const niveaux = {
