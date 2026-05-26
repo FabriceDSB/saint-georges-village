@@ -1289,10 +1289,11 @@ async function fetchVigilance() {
     const r = await fetch(proxy, { signal: AbortSignal.timeout(8000) });
     if (r.ok) {
       const wrapper = await r.json();
+      console.log("[Vigilance allorigins]", wrapper.contents?.slice(0,200));
       const d = JSON.parse(wrapper.contents);
       return parseVigilance(d);
     }
-  } catch(e) {}
+  } catch(e) { console.warn("[Vigilance allorigins erreur]", e.message); }
 
   // Tentative 3 : fallback estimation Open-Meteo
   try {
@@ -1472,7 +1473,7 @@ function buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation
   lines.push(``);
   lines.push(`${lune.emoji} Lune : ${lune.nom} — ${lune.conseil}`);
   lines.push(``);
-  lines.push(`✝️ Fête du jour : ${saint.emoji} ${saint.nom}`);
+  lines.push(`🌸 Fête du jour : ${saint.emoji} ${saint.nom}`);
   lines.push(``);
   lines.push(`🌾 Conseil jardinage du jour :`);
   lines.push(`${jardinage}`);
@@ -1480,12 +1481,8 @@ function buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation
 
   lines.push(`🌿 Pollen : ${pollen}`);
   lines.push(`💨 Qualité de l'air : ${aqi}`);
+  lines.push(`⚠️ Vigilance météo 35 : ${vigilance}`);
   lines.push(``);
-
-  if (vigilance && !vigilance.includes("Pas de vigilance")) {
-    lines.push(`⚠️ Vigilance météo 35 : ${vigilance}`);
-    lines.push(``);
-  }
 
   if (vigieau && !vigieau.includes("Aucune restriction")) {
     lines.push(`💧 Restrictions d'eau : ${vigieau}`);
@@ -1499,10 +1496,8 @@ function buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation
   lines.push(`🏛️ Mairie de Saint-Georges : ${getMairie().replace(/\n/g, " · ")}`);
   lines.push(``);
 
-  if (poubelles.rappel || poubelles.msg.includes("ce soir") || poubelles.msg.includes("aujourd'hui")) {
-    lines.push(`🗑️ ${poubelles.msg}`);
-    lines.push(``);
-  }
+  lines.push(`🗑️ ${poubelles.msg}`);
+  lines.push(``);
 
   lines.push(`💬 Citation du jour :`);
   lines.push(`« ${citation.texte} »`);
