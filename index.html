@@ -429,6 +429,55 @@
         <div class="info-value" id="carburant-val"><span class="loading">Chargement...</span></div>
       </div>
     </div>
+    <div class="info-row" id="row-neige" style="display:none">
+      <div class="info-icon" style="background:rgba(180,220,255,0.25)">❄️</div>
+      <div>
+        <div class="info-label">Plan neige / Vigilance hivernale</div>
+        <div class="info-value" id="neige-val"></div>
+      </div>
+    </div>
+    <div class="info-row">
+      <div class="info-icon" style="background:rgba(255,180,0,0.15)">🌾</div>
+      <div>
+        <div class="info-label">Rappel saisonnier</div>
+        <div class="info-value" id="saison-val"></div>
+      </div>
+    </div>
+    <div class="info-row">
+      <div class="info-icon" style="background:rgba(80,50,20,0.12)">🗑️</div>
+      <div>
+        <div class="info-label">Déchetterie de Louvigné-du-Désert</div>
+        <div class="info-value" id="dechetterie-val"></div>
+      </div>
+    </div>
+    <div class="info-row">
+      <div class="info-icon" style="background:rgba(100,180,100,0.15)">🌱</div>
+      <div>
+        <div class="info-label">Le saviez-vous ?</div>
+        <div class="info-value" id="saviezvous-val"></div>
+      </div>
+    </div>
+    <div class="info-row">
+      <div class="info-icon" style="background:rgba(220,120,50,0.15)">🧑‍🍳</div>
+      <div>
+        <div class="info-label">Recette du terroir</div>
+        <div class="info-value" id="recette-val"></div>
+      </div>
+    </div>
+    <div class="info-row">
+      <div class="info-icon" style="background:rgba(80,80,200,0.12)">🗳️</div>
+      <div>
+        <div class="info-label">Question de la semaine</div>
+        <div class="info-value" id="question-val"></div>
+      </div>
+    </div>
+    <div class="info-row" id="row-photo">
+      <div class="info-icon" style="background:rgba(200,50,150,0.12)">📸</div>
+      <div>
+        <div class="info-label">Thème photo du moment</div>
+        <div class="info-value" id="photo-val"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1318,11 +1367,21 @@ async function fetchVigiEau() {
       "alerte_renforcee": "🔴 Alerte renforcée",
       "crise":            "⛔ Crise",
     };
-    const zones = d.map(z => {
-      const niv = niveaux[z.niveauGravite] ?? "⚠️ Restriction";
-      return `${niv} — ${z.nomZone ?? z.typeZone ?? "zone locale"}`;
-    });
-    return zones.join("\n");
+    // Dédoublonne par niveau de gravité pour éviter les répétitions
+    const dejavu = new Set();
+    const zones = d
+      .filter(z => {
+        const key = (z.niveauGravite ?? "") + "|" + (z.nomZone ?? z.typeZone ?? "zone locale");
+        if (dejavu.has(key)) return false;
+        dejavu.add(key);
+        return true;
+      })
+      .map(z => {
+        const niv = niveaux[z.niveauGravite] ?? "⚠️ Restriction";
+        const nom = z.nomZone ?? z.typeZone ?? "zone locale";
+        return `${niv} : ${nom}`;
+      });
+    return zones.join(" · ");
   } catch(e) {
     return "🟢 Aucune restriction en vigueur";
   }
@@ -1331,15 +1390,17 @@ async function fetchVigiEau() {
 // ─── Marchés locaux ───────────────────────────────────────────────────────────
 function getMarchesAujourdhui() {
   const MARCHES = [
-    { jour: 1, nom: "Marché de Saint-James",                        horaire: "8h–12h30",  lieu: "Rue Foch & Av. De Gaulle",       dist: "~15 km" },
-    { jour: 3, nom: "Marché de Saint-Hilaire-du-Harcouët",          horaire: "matin",     lieu: "Place Delaporte, centre-ville (50)", dist: "~18 km" },
-    { jour: 5, nom: "Marché de Louvigné-du-Désert",                 horaire: "7h30–13h",  lieu: "Place Charles de Gaulle",        dist: "~8 km"  },
-    { jour: 5, nom: "Marché alimentaire Saint-Hilaire-du-Harcouët", horaire: "matin",     lieu: "Place de l'Hôtel de Ville (50)", dist: "~18 km" },
+    { jour: 4, nom: "Saint-Georges", sousnom: "Grand marché",          horaire: "8h–12h30",  lieu: "Place de la Mairie",                        dist: "sur place" },
+    { jour: 5, nom: "Saint-Georges", sousnom: "Ferme Millefeuilles",   horaire: "17h–19h",   lieu: "L'Eteurie",                                  dist: "sur place" },
+    { jour: 1, nom: "Saint-Georges", sousnom: "Petit marché",          horaire: "16h30–18h", lieu: "Place Alexandre Dubois (période scolaire)",   dist: "sur place" },
+    { jour: 1, nom: "Saint-James",   sousnom: "Marché",                horaire: "8h–12h30",  lieu: "Rue Foch et Av. De Gaulle",                  dist: "~15 km" },
+    { jour: 3, nom: "Saint-Hilaire-du-Harcouët", sousnom: "Marché",   horaire: "matin",     lieu: "Place Delaporte (50)",                       dist: "~18 km" },
+    { jour: 5, nom: "Louvigné-du-Désert", sousnom: "Marché",          horaire: "7h30–13h",  lieu: "Place Charles de Gaulle",                    dist: "~8 km" },
+    { jour: 5, nom: "Saint-Hilaire-du-Harcouët", sousnom: "Marché alimentaire", horaire: "matin", lieu: "Place de l'Hôtel de Ville (50)",       dist: "~18 km" },
   ];
   const today = new Date().getDay(); // 0=dim, 1=lun ...
   const today_marches = MARCHES.filter(m => m.jour === today);
   if (today_marches.length === 0) {
-    // Cherche le prochain
     const sorted = [...MARCHES].sort((a,b) => {
       const da = (a.jour - today + 7) % 7 || 7;
       const db = (b.jour - today + 7) % 7 || 7;
@@ -1347,9 +1408,9 @@ function getMarchesAujourdhui() {
     });
     const next = sorted[0];
     const jours = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
-    return `Pas de marché aujourd'hui. Prochain : ${next.nom} (${jours[next.jour]}, ${next.horaire})`;
+    return `Pas de marché aujourd'hui.\nProchain : ${next.nom} (${next.sousnom}) ${jours[next.jour]} ${next.horaire}`;
   }
-  return today_marches.map(m => `🛒 ${m.nom}\n${m.horaire} · ${m.lieu} · ${m.dist}`).join("\n\n");
+  return today_marches.map(m => `🛒 ${m.nom} (${m.sousnom}) ${m.horaire} · ${m.lieu}`).join("\n");
 }
 
 // ─── Permanences mairie ───────────────────────────────────────────────────────
@@ -1440,6 +1501,330 @@ function getJardinage(mois) {
   return conseils[now.getDate() % conseils.length];
 }
 
+// ─── Saviez-vous ──────────────────────────────────────────────────────────────
+const SAVIEZVOUS = [
+  "La Bretagne compte plus de 2 800 km de côtes, soit le quart du littoral français.",
+  "Le bocage breton est l'un des paysages agricoles les plus riches en biodiversité d'Europe.",
+  "Le menhir de Champ-Dolent à Dol-de-Bretagne est l'un des plus grands de France avec ses 9,50 m.",
+  "La Bretagne produit près de 60% des légumes primeurs français.",
+  "Le genêt, fleur emblématique de la Bretagne, était autrefois utilisé pour teindre les tissus en jaune.",
+  "L'Ille-et-Vilaine tire son nom de la confluence de deux rivières : l'Ille et la Vilaine.",
+  "La forêt de Fougères, à quelques kilomètres de Saint-Georges, est l'une des plus grandes forêts d'Ille-et-Vilaine.",
+  "Les haies bocagères bretonnes abritent plus de 100 espèces d'oiseaux nicheurs.",
+  "Le cidre breton est produit depuis le Moyen Âge dans la région.",
+  "La mésange bleue peut manger jusqu'à 400 chenilles par jour pour nourrir ses petits.",
+  "Un hêtre adulte peut absorber 10 kg de CO₂ par an.",
+  "La Bretagne est la première région française pour la production de porcs et de volailles.",
+  "Les écureuils roux entèrent des milliers de noisettes par automne mais en retrouvent moins de la moitié.",
+  "Le mont Saint-Michel est à environ 50 km de Saint-Georges-de-Reintembault.",
+  "La chouette effraie peut chasser dans une obscurité totale grâce à son ouïe exceptionnelle.",
+  "Le lierre est l'une des rares plantes à fleurir en automne, source précieuse de nourriture pour les abeilles.",
+  "Une vache produit en moyenne 25 litres de lait par jour.",
+  "Les champignons ne sont ni des plantes ni des animaux : ils forment leur propre règne.",
+  "Le blé noir (sarrasin) est arrivé en Bretagne au XVe siècle, probablement rapporté des croisades.",
+  "Une colonie d'abeilles parcourt l'équivalent de 3 fois le tour de la Terre pour produire 1 kg de miel.",
+  "L'if, arbre souvent présent dans les cimetières bretons, peut vivre plus de 1 000 ans.",
+  "Les hirondelles parcourent jusqu'à 10 000 km lors de leur migration vers l'Afrique.",
+  "La Bretagne compte plus de 1 500 variétés de pommes à cidre.",
+  "Les taupes retournent jusqu'à 6 kg de terre par jour en creusant leurs galeries.",
+  "Le renard roux s'est parfaitement adapté à la vie en bocage et en village.",
+  "Une alouette des champs peut chanter en vol pendant plus de 2 heures d'affilée.",
+  "Le granit breton est utilisé en construction depuis plus de 4 000 ans.",
+  "Les merles mâles commencent à chanter dès janvier pour défendre leur territoire.",
+  "En Bretagne, il existe plus de 600 fontaines et sources considérées comme sacrées.",
+  "La Bretagne produit chaque année plus de 1 milliard de gallettes de sarrasin.",
+];
+
+function getSaviezdVous() {
+  const doy = Math.floor((new Date() - new Date(new Date().getFullYear(),0,0)) / 86400000);
+  return SAVIEZVOUS[doy % SAVIEZVOUS.length];
+}
+
+// ─── Recette du terroir saisonnière ───────────────────────────────────────────
+const RECETTES = [
+  // Jan
+  { mois:[1],    nom:"Soupe de poireaux-pommes de terre", desc:"Faites revenir 3 poireaux émincés dans du beurre, ajoutez 4 pommes de terre en dés, couvrez d'eau, cuisez 25 min puis mixez. Servez avec une noisette de beurre salé." },
+  // Fév
+  { mois:[2],    nom:"Galette de sarrasin complète", desc:"Mélangez 250g de farine de sarrasin, 1 œuf, 50cl d'eau, 1 pincée de sel. Laissez reposer 1h. Cuisez à la crêpière, garnissez de jambon, fromage râpé et œuf." },
+  // Mars
+  { mois:[3],    nom:"Velouté de carottes nouvelles", desc:"Faites revenir 500g de carottes et 1 oignon dans du beurre. Ajoutez 75cl de bouillon de légumes, cuisez 20 min, mixez avec une cuillère de crème fraîche." },
+  // Avr
+  { mois:[4],    nom:"Fricassée d'asperges bretonnes", desc:"Faites revenir 500g d'asperges vertes coupées en tronçons dans du beurre avec 1 échalote. Déglacez au cidre, ajoutez de la crème et servez sur des œufs brouillés." },
+  // Mai
+  { mois:[5],    nom:"Salade de fraises au miel de Bretagne", desc:"Coupez 500g de fraises en deux. Arrosez de 2 cuillères à soupe de miel, d'un filet de jus de citron et de quelques feuilles de menthe fraîche." },
+  // Juin
+  { mois:[6],    nom:"Gratin de courgettes au fromage", desc:"Détaillez 4 courgettes en rondelles. Disposez-les dans un plat, ajoutez de la crème fraîche, du fromage râpé, sel, poivre et herbes de Provence. Gratinez 25 min à 180°C." },
+  // Juil
+  { mois:[7],    nom:"Soupe froide de tomates du jardin", desc:"Mixez 1 kg de tomates bien mûres pelées avec 1 concombre, 1 poivron, 1 gousse d'ail, huile d'olive, sel et vinaigre de cidre. Servez bien frais." },
+  // Août
+  { mois:[8],    nom:"Ratatouille bretonne au cidre", desc:"Faites revenir tomates, courgettes, poivrons et aubergines en dés. Ajoutez 1 verre de cidre brut, thym, laurier et laissez mijoter 30 min à feu doux." },
+  // Sep
+  { mois:[9],    nom:"Tarte aux pommes bretonne", desc:"Étalez une pâte brisée, recouvrez de compote de pommes, disposez des lamelles de pommes reinettes, saupoudrez de cassonade et d'une noix de beurre. Cuisez 35 min à 180°C." },
+  // Oct
+  { mois:[10],   nom:"Potée aux légumes d'automne", desc:"Faites mijoter 2h chou, carottes, navets, poireaux et pommes de terre avec un jarret de porc demi-sel et un bouquet garni. Servez avec du pain de campagne." },
+  // Nov
+  { mois:[11],   nom:"Gratin de potimarron", desc:"Coupez 1 potimarron en tranches fines. Disposez dans un plat, nappez de crème, salez, poivrez, râpez du fromage. Cuisez 40 min à 180°C. Parsemez de noisettes grillées." },
+  // Déc
+  { mois:[12],   nom:"Far breton aux pruneaux", desc:"Battez 4 œufs avec 150g de sucre, 200g de farine et 75cl de lait. Ajoutez 200g de pruneaux. Versez dans un plat beurré et cuisez 45 min à 180°C. Se sert tiède ou froid." },
+];
+
+function getRecette() {
+  const m = new Date().getMonth() + 1;
+  const r = RECETTES.find(r => r.mois.includes(m));
+  return r ? `${r.nom} : ${r.desc}` : "";
+}
+
+// ─── Bus Illenoo ──────────────────────────────────────────────────────────────
+function getBusInfo() {
+  const day = new Date().getDay();
+  const weekend = (day === 0 || day === 6);
+  return weekend
+    ? "Pas de service Illenoo les week-ends sur les lignes locales.\n📞 Renseignements : 0800 007 011 (gratuit) · illenoo.fr"
+    : "Ligne 14 : Saint-Georges ↔ Fougères (correspondances TER)\nLigne 51 : Saint-Georges ↔ Louvigné-du-Désert\n📞 0800 007 011 (gratuit) · illenoo.fr";
+}
+
+// ─── Déchetterie Louvigné-du-Désert ───────────────────────────────────────────
+function getDechetterie() {
+  const day = new Date().getDay();
+  const HORAIRES = {
+    1: "9h–12h / 14h–17h30",   // Lun
+    2: "9h–12h / 14h–17h30",   // Mar
+    3: "9h–12h / 14h–17h30",   // Mer
+    4: "9h–12h / 14h–17h30",   // Jeu
+    5: "9h–12h / 14h–17h30",   // Ven
+    6: "9h–12h30",              // Sam
+  };
+  const h = HORAIRES[day];
+  if (!h) return "♻️ Déchetterie de Louvigné-du-Désert — fermée le dimanche (~8 km)";
+  return `♻️ Déchetterie de Louvigné-du-Désert — ouverte aujourd'hui : ${h} (~8 km)`;
+}
+
+// ─── Rappel saisonnier ────────────────────────────────────────────────────────
+function getRappelSaisonnier() {
+  const now = new Date();
+  const m = now.getMonth() + 1;
+  const d = now.getDate();
+
+  // Périodes scolaires Bretagne (zone B) — approximatif
+  const rappels = [];
+
+  if (m === 9 && d >= 1  && d <= 7)   rappels.push("🎒 Rentrée scolaire — attention aux cars scolaires sur les routes !");
+  if (m === 10 && d >= 17 && d <= 31) rappels.push("🍂 Vacances de la Toussaint (zone B)");
+  if (m === 11 && d === 1)             rappels.push("🕯️ Toussaint — pensez à fleurir les tombes de nos proches");
+  if (m === 11 && d === 11)            rappels.push("🎖️ Armistice — commémoration du 11 novembre");
+  if (m === 12 && d >= 20)             rappels.push("🎄 Vacances de Noël (zone B)");
+  if (m === 1  && d <= 5)              rappels.push("🎆 Bonne année à toute la communauté !");
+  if (m === 2  && d >= 8 && d <= 23)   rappels.push("⛷️ Vacances d'hiver (zone B)");
+  if (m === 3 || m === 4)              rappels.push("🌱 Printemps — c'est la saison des semis et plantations !");
+  if (m === 4  && d >= 12 && d <= 27)  rappels.push("🐣 Vacances de Pâques (zone B)");
+  if (m === 5  && d === 1)             rappels.push("🌺 Fête du Travail — bonne journée à tous !");
+  if (m === 5  && d === 8)             rappels.push("🎖️ Victoire 1945 — commémoration");
+  if (m === 6)                          rappels.push("☀️ Été approche — attention aux enfants sur les routes pendant les grandes vacances !");
+  if (m === 7 || m === 8)              rappels.push("🏖️ Grandes vacances — restez prudents sur les routes !");
+  if (m === 9)                          rappels.push("🍄 Saison des champignons — attention aux espèces toxiques !");
+  if (m === 10 || m === 11)            rappels.push("🦌 Ouverture de la chasse — soyez vigilants en forêt et dans les champs");
+  if (m === 11 || m === 12 || m === 1 || m === 2) rappels.push("🌡️ Pensez à vos voisins âgés par temps froid");
+
+  return rappels.length ? rappels[0] : `🌿 Bonne journée printanière à tous !`;
+}
+
+// ─── Plan neige ───────────────────────────────────────────────────────────────
+function getPlanNeige(tmin, weatherCode) {
+  const m = new Date().getMonth() + 1;
+  const hiverActif = [11,12,1,2,3].includes(m);
+  if (!hiverActif) return null;
+  const risqueGel   = tmin <= 0;
+  const risqueNeige = [71,72,73,74,75,76,77,85,86].includes(weatherCode);
+  if (!risqueGel && !risqueNeige) return null;
+  let msg = [];
+  if (risqueNeige) msg.push("❄️ Chutes de neige prévues — routes glissantes possibles");
+  else if (risqueGel) msg.push("🌡️ Gel prévu cette nuit — attention au verglas ce matin");
+  msg.push("• Conduisez lentement, gardez vos distances");
+  msg.push("• Sableuses en service sur les axes principaux");
+  msg.push("• En cas d'urgence : Pompiers 18 · SAMU 15");
+  return msg.join("\n");
+}
+
+// ─── Question de la semaine ───────────────────────────────────────────────────
+// Chaque question a une saison optionnelle : "printemps", "ete", "automne", "hiver", ou null (toute l'année)
+const QUESTIONS = [
+  // Vie locale
+  { q: "Depuis combien de temps habitez-vous à Saint-Georges ou dans les environs ?", saison: null },
+  { q: "Quel est votre endroit préféré dans le village ?", saison: null },
+  { q: "Un souvenir marquant de la fête du village ?", saison: null },
+  { q: "Connaissez-vous une anecdote sur l'histoire de Saint-Georges ?", saison: null },
+  { q: "Quel commerce ou service vous manque le plus dans le village ?", saison: null },
+  { q: "Quel est le lieu insolite ou méconnu autour de Saint-Georges que vous recommandez ?", saison: null },
+  { q: "Si vous pouviez améliorer une chose dans le village, ce serait quoi ?", saison: null },
+  // Nature & jardinage
+  { q: "Quel est votre légume du jardin préféré en ce moment ?", saison: null },
+  { q: "Avez-vous des astuces de jardinage à partager ?", saison: null },
+  { q: "Quelle est votre fleur préférée à planter au printemps ?", saison: "printemps" },
+  { q: "Avez-vous un potager ? Qu'est-ce que vous y cultivez ?", saison: "printemps" },
+  { q: "Quel est votre champignon préféré à ramasser en automne ?", saison: "automne" },
+  { q: "Avez-vous des astuces pour lutter contre les limaces sans pesticides ?", saison: "printemps" },
+  { q: "Quelle est la plus belle balade nature autour de Saint-Georges selon vous ?", saison: null },
+  // Cuisine & produits locaux
+  { q: "Quel est votre producteur local coup de coeur ?", saison: null },
+  { q: "Avez-vous une recette bretonne incontournable à partager ?", saison: null },
+  { q: "Cidre ou chouchen : lequel préférez-vous ?", saison: null },
+  { q: "Galette-saucisse ou crêpe au beurre salé : votre choix ?", saison: null },
+  { q: "Quel est votre fromage de la région préféré ?", saison: null },
+  { q: "Avez-vous un bon plan pour acheter des produits frais directement chez un producteur ?", saison: null },
+  { q: "Quelle est votre recette familiale que vous adorez cuisiner en hiver ?", saison: "hiver" },
+  // Saisons & météo
+  { q: "Comment préparez-vous votre jardin pour l'hiver ?", saison: "automne" },
+  { q: "Quelle est votre saison préférée à Saint-Georges et pourquoi ?", saison: null },
+  { q: "Quel a été votre plus beau souvenir de neige dans le village ? Partagez vos photos !", saison: "hiver" },
+  { q: "Que faites-vous les jours de grand soleil autour de Saint-Georges ?", saison: "ete" },
+  // Associations & vie communautaire
+  { q: "Êtes-vous membre d'une association locale ? Laquelle ?", saison: null },
+  { q: "Un événement associatif que vous recommandez à ne pas rater ?", saison: null },
+  { q: "Avez-vous des nouvelles des associations du village à partager ?", saison: null },
+  // Artisans & commerces
+  { q: "Un artisan local que vous recommandez vivement ?", saison: null },
+  { q: "Quel service local vous rend la vie plus facile au quotidien ?", saison: null },
+  { q: "Avez-vous découvert un nouveau commerce dans la région récemment ?", saison: null },
+  // Loisirs & sorties
+  { q: "Quelle est votre balade à vélo ou à pied préférée autour du village ?", saison: null },
+  { q: "Avez-vous une bonne adresse restaurant dans un rayon de 20 km ?", saison: null },
+  { q: "Que faites-vous le week-end pour vous ressourcer ?", saison: null },
+  { q: "Avez-vous un livre, film ou série à recommander en ce moment ?", saison: null },
+  { q: "Quel est votre spot de pêche préféré dans la région ?", saison: "ete" },
+  // Nostalgie & traditions
+  { q: "Quel métier traditionnel breton vous fascine ?", saison: null },
+  { q: "Avez-vous un objet ou une tradition familiale transmis de génération en génération ?", saison: null },
+  { q: "Quel est votre souvenir d'enfance préféré lié à la campagne ?", saison: null },
+  { q: "Y a-t-il une fête ou tradition locale que vous aimeriez voir revivre ?", saison: null },
+  // Fun & légères
+  { q: "Plutôt lève-tôt pour profiter du calme du matin ou couche-tard ?", saison: null },
+  { q: "Chien ou chat, et pourquoi ?", saison: null },
+  { q: "Quel est le son qui vous réveille le matin à Saint-Georges ?", saison: null },
+  { q: "Si vous deviez résumer Saint-Georges en un seul mot, ce serait lequel ?", saison: null },
+  { q: "Qu'est-ce qui vous fait sourire chaque matin en regardant par la fenêtre ?", saison: null },
+];
+
+function getSaison() {
+  const m = new Date().getMonth() + 1;
+  if (m >= 3 && m <= 5)  return "printemps";
+  if (m >= 6 && m <= 8)  return "ete";
+  if (m >= 9 && m <= 11) return "automne";
+  return "hiver";
+}
+
+function getQuestion() {
+  const saisonActuelle = getSaison();
+  const compatibles = QUESTIONS.filter(q => q.saison === null || q.saison === saisonActuelle);
+
+  // Numéro de semaine dans l'année
+  const semaine = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / (86400000 * 7));
+
+  // On utilise un ordre mélangé mais déterministe basé sur l'année
+  // pour éviter que les mêmes questions reviennent en début d'année
+  const annee = new Date().getFullYear();
+  const seed = annee * 100 + (semaine % compatibles.length);
+  // Mélange déterministe (Fisher-Yates avec seed)
+  const indices = compatibles.map((_, i) => i);
+  let s = seed;
+  for (let i = indices.length - 1; i > 0; i--) {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    const j = Math.abs(s) % (i + 1);
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  return compatibles[indices[semaine % compatibles.length]].q;
+}
+
+// ─── Thème photo — dates fixes dans l'année ───────────────────────────────────
+const THEMES_PHOTO = [
+  { mois:10, jour:20, theme:"🍂 Les couleurs de l'automne sont là ! Partagez une photo de vos jardins ou paysages en cette belle saison." },
+  { mois:10, jour:29, theme:"🎃 Halloween approche ! Partagez vos décorations ou vos citrouilles sculptées !" },
+  { mois:12, jour:20, theme:"🎄 Les décorations de Noël illuminent le village ! Partagez une photo de votre maison, jardin ou sapin !" },
+  { mois:1,  jour:20, theme:"❄️ L'hiver est là ! Partagez vos plus beaux paysages givrés ou enneigés autour de Saint-Georges." },
+  { mois:3,  jour:20, theme:"🌸 Le printemps arrive ! Montrez-nous les premières fleurs de vos jardins !" },
+  { mois:6,  jour:21, theme:"☀️ C'est l'été ! Partagez vos plus beaux paysages ensoleillés autour du village." },
+];
+
+function getThemePhoto() {
+  const now = new Date();
+  const m = now.getMonth() + 1;
+  const d = now.getDate();
+  // Affiche pendant 7 jours à partir de la date
+  const t = THEMES_PHOTO.find(t => {
+    if (t.mois === m && d >= t.jour && d <= t.jour + 6) return true;
+    // Gestion passage de mois (ex: 29 oct → affiché jusqu'au 4 nov)
+    if (d < t.jour) return false;
+    return false;
+  });
+  return t ? t.theme : null;
+}
+
+// ─── Agenda (localStorage) ────────────────────────────────────────────────────
+function getAgenda() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const evts = JSON.parse(localStorage.getItem("sg_agenda") || "[]");
+  // Supprime les événements passés
+  const actifs = evts.filter(e => new Date(e.date) >= today);
+  localStorage.setItem("sg_agenda", JSON.stringify(actifs));
+  return actifs.sort((a,b) => a.date.localeCompare(b.date));
+}
+
+function ajouterEvenement() {
+  const date  = document.getElementById("evt-date").value;
+  const titre = document.getElementById("evt-titre").value.trim();
+  const lieu  = document.getElementById("evt-lieu").value.trim();
+  const heure = document.getElementById("evt-heure").value.trim();
+  if (!date || !titre) { alert("Date et titre requis"); return; }
+  const evts = JSON.parse(localStorage.getItem("sg_agenda") || "[]");
+  evts.push({ date, titre, lieu, heure });
+  localStorage.setItem("sg_agenda", JSON.stringify(evts));
+  document.getElementById("evt-date").value  = "";
+  document.getElementById("evt-titre").value = "";
+  document.getElementById("evt-lieu").value  = "";
+  document.getElementById("evt-heure").value = "";
+  afficherAgenda();
+}
+
+function supprimerEvenement(idx) {
+  const evts = JSON.parse(localStorage.getItem("sg_agenda") || "[]");
+  evts.splice(idx, 1);
+  localStorage.setItem("sg_agenda", JSON.stringify(evts));
+  afficherAgenda();
+}
+
+function afficherAgenda() {
+  const evts = getAgenda();
+  const el = document.getElementById("agenda-val");
+  const list = document.getElementById("agenda-list");
+
+  if (evts.length === 0) {
+    el.textContent = "Aucun événement à venir";
+    if (list) list.innerHTML = "<p style='color:#999;font-size:13px'>Aucun événement enregistré.</p>";
+    return;
+  }
+
+  const fmt = (dateStr) => {
+    const d = new Date(dateStr + "T12:00:00");
+    return d.toLocaleDateString("fr-FR", { weekday:"long", day:"numeric", month:"long" });
+  };
+
+  el.innerHTML = evts.map(e =>
+    `📅 <strong>${fmt(e.date)}</strong> — ${e.titre}${e.heure ? " à " + e.heure : ""}${e.lieu ? " · " + e.lieu : ""}`
+  ).join("<br>");
+
+  if (list) {
+    list.innerHTML = evts.map((e, i) => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#f5f0e8;border-radius:8px">
+        <div>
+          <strong>${fmt(e.date)}</strong> — ${e.titre}
+          ${e.heure ? `<span style="color:#888"> à ${e.heure}</span>` : ""}
+          ${e.lieu  ? `<span style="color:#888"> · ${e.lieu}</span>`  : ""}
+        </div>
+        <button onclick="supprimerEvenement(${i})" style="background:#e55;color:white;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:13px">✕</button>
+      </div>
+    `).join("");
+  }
+}
+
 function buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation, carburants, pollen, aqi, vigilance, vigieau) {
   const { jour, date, saint } = dateInfo;
   const { desc, tmax, tmin, vent } = meteo;
@@ -1486,6 +1871,40 @@ function buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation
   lines.push(`🗑️ ${poubelles.msg}`);
   lines.push(``);
 
+  // Plan neige (uniquement si pertinent)
+  const planNeige = getPlanNeige(meteo.tmin, meteo.weatherCode ?? 0);
+  if (planNeige) { lines.push(planNeige); lines.push(``); }
+
+  lines.push(`🌾 ${getRappelSaisonnier()}`);
+  lines.push(``);
+
+  lines.push(`${getDechetterie()}`);
+  lines.push(``);
+
+  lines.push(`🌱 Le saviez-vous ? ${getSaviezdVous()}`);
+  lines.push(``);
+
+  lines.push(`🧑‍🍳 Recette du terroir : ${getRecette().split(" : ")[0]}`);
+  lines.push(``);
+
+  lines.push(`🗳️ Question de la semaine : ${getQuestion()}`);
+  lines.push(`👉 Répondez en commentaire !`);
+  lines.push(``);
+
+  const themePhoto = getThemePhoto();
+  if (themePhoto) { lines.push(`📸 ${themePhoto}`); lines.push(``); }
+
+  const agenda = getAgenda();
+  if (agenda.length > 0) {
+    lines.push(`📅 Agenda :`);
+    const fmt = (dateStr) => {
+      const d = new Date(dateStr + "T12:00:00");
+      return d.toLocaleDateString("fr-FR", { weekday:"long", day:"numeric", month:"long" });
+    };
+    agenda.forEach(e => lines.push(`• ${fmt(e.date)} — ${e.titre}${e.heure?" à "+e.heure:""}${e.lieu?" · "+e.lieu:""}`));
+    lines.push(``);
+  }
+
   lines.push(`💬 Citation du jour :`);
   lines.push(`« ${citation.texte} »`);
   lines.push(`— ${citation.auteur}`);
@@ -1493,13 +1912,14 @@ function buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation
   if (carburants && Object.keys(carburants).length > 0) {
     lines.push(`⛽ Carburants les moins chers (rayon 20 km) :`);
     for (const [label, info] of Object.entries(carburants)) {
-      lines.push(`${info.emoji} ${label} — ${info.prix}€/L  📍 ${info.ville} (${info.dist} km)`);
+      lines.push(`${info.emoji} ${label} : ${info.prix}€/L  📍 ${info.ville} (${info.dist} km)`);
     }
     lines.push(`⚠️ Prix indicatifs — à vérifier sur https://www.prix-carburants.gouv.fr`);
     lines.push(``);
   }
 
   lines.push(`Bonne journée à tous les habitants ! 🌿`);
+  lines.push(`📢 Vous avez une info, un événement, une annonce pour le village ? Envoyez-moi un message privé et je l'intégrerai au post !`);
   lines.push(`#SaintGeorgesDeReintembault #VieDeVillage #Reintembault`);
 
   return lines.join("\n");
@@ -1873,8 +2293,17 @@ async function loadAll() {
   document.getElementById("carburant-val").innerHTML = `<span class="loading">Récupération en cours...</span>`;
 
   // Éléments synchrones
-  document.getElementById("marche-val").textContent = getMarchesAujourdhui();
-  document.getElementById("mairie-val").textContent = getMairie();
+  document.getElementById("marche-val").innerHTML    = getMarchesAujourdhui().replace(/\n/g, "<br>");
+  document.getElementById("mairie-val").textContent  = getMairie();
+  document.getElementById("saison-val").textContent  = getRappelSaisonnier();
+  document.getElementById("dechetterie-val").textContent = getDechetterie();
+  document.getElementById("saviezvous-val").textContent  = getSaviezdVous();
+  document.getElementById("recette-val").textContent  = getRecette();
+  document.getElementById("question-val").textContent = "🗳️ " + getQuestion() + "\n👉 Répondez en commentaire !";
+  const tp = getThemePhoto();
+  if (tp) document.getElementById("photo-val").textContent = tp;
+  else document.getElementById("row-photo").style.display = "none";
+  afficherAgenda();
 
   // Météo + soleil + carburants + pollen + AQI + vigilance + vigieau (async)
   const [meteo, soleil, carburants, pollen, aqi, vigilance, vigieau] = await Promise.all([
@@ -1895,6 +2324,13 @@ async function loadAll() {
   document.getElementById("aqi-val").textContent = aqi;
   document.getElementById("vigilance-val").textContent = vigilance;
   document.getElementById("vigieau-val").textContent = vigieau;
+
+  // Plan neige (seulement si pertinent)
+  const planNeige = getPlanNeige(meteo.tmin, meteo.weatherCode ?? 0);
+  if (planNeige) {
+    document.getElementById("neige-val").textContent = planNeige;
+    document.getElementById("row-neige").style.display = "";
+  }
 
   if (carburants && Object.keys(carburants).length > 0) {
     const lines = Object.entries(carburants).map(([label, info]) =>
