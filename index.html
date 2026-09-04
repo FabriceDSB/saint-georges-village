@@ -1842,7 +1842,7 @@ function buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation
   if (meteo.soir)  lines.push(`🌆 Soir (19h) : ${meteo.soir.desc}, ${meteo.soir.temp}°C, 🌧️ ${meteo.soir.pluie}% de pluie`);
   lines.push(`🌅 Lever : ${soleil.lever}  •  Coucher : ${soleil.coucher}`);
   lines.push(``);
-  lines.push(`${lune.emoji} Lune : ${lune.nom} — ${lune.conseil}`);
+  lines.push(`${lune.emoji} Lune : ${lune.nom}. ${lune.conseil}`);
   lines.push(``);
   lines.push(`🌸 Fête du jour : ${saint.emoji} ${saint.nom}`);
   lines.push(``);
@@ -1861,16 +1861,16 @@ function buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation
   }
 
   const marche = getMarchesAujourdhui();
-  lines.push(`🛒 Marchés aujourd'hui : ${marche}`);
+  lines.push(`🛒 Marchés aujourd'hui :`);
+  marche.split("\n").forEach(l => lines.push(l));
   lines.push(``);
 
-  lines.push(`🏛️ Mairie de Saint-Georges : ${getMairie().replace(/\n/g, " · ")}`);
+  lines.push(`🏛️ Mairie : 📞 02 99 97 01 13 · ${getMairie().split("\n")[1] ?? ""}`);
   lines.push(``);
 
   lines.push(`🗑️ ${poubelles.msg}`);
   lines.push(``);
 
-  // Plan neige (uniquement si pertinent)
   const planNeige = getPlanNeige(meteo.tmin, meteo.weatherCode ?? 0);
   if (planNeige) { lines.push(planNeige); lines.push(``); }
 
@@ -1880,13 +1880,18 @@ function buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation
   lines.push(`${getDechetterie()}`);
   lines.push(``);
 
-  lines.push(`🌱 Le saviez-vous ? ${getSaviezdVous()}`);
+  lines.push(`🌱 Le saviez-vous ?`);
+  lines.push(getSaviezdVous());
   lines.push(``);
 
-  lines.push(`🧑‍🍳 Recette du terroir : ${getRecette().split(" : ")[0]}`);
+  const recette = getRecette();
+  const recetteParts = recette.split(" : ");
+  lines.push(`🧑‍🍳 Recette du terroir : ${recetteParts[0]}`);
+  if (recetteParts[1]) lines.push(recetteParts[1]);
   lines.push(``);
 
-  lines.push(`🗳️ Question de la semaine : ${getQuestion()}`);
+  lines.push(`🗳️ Question de la semaine :`);
+  lines.push(getQuestion());
   lines.push(`👉 Répondez en commentaire !`);
   lines.push(``);
 
@@ -1913,7 +1918,7 @@ function buildPost(dateInfo, meteo, soleil, lune, jardinage, poubelles, citation
     for (const [label, info] of Object.entries(carburants)) {
       lines.push(`${info.emoji} ${label} : ${info.prix}€/L  📍 ${info.ville} (${info.dist} km)`);
     }
-    lines.push(`⚠️ Prix indicatifs — à vérifier sur https://www.prix-carburants.gouv.fr`);
+    lines.push(`⚠️ Prix indicatifs, à vérifier sur https://www.prix-carburants.gouv.fr`);
     lines.push(``);
   }
 
