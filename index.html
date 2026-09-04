@@ -1781,20 +1781,19 @@ function ajouterEvenement() {
   document.getElementById("evt-titre").value = "";
   document.getElementById("evt-lieu").value  = "";
   document.getElementById("evt-heure").value = "";
-  afficherAgenda();
 }
 
 function supprimerEvenement(idx) {
   const evts = JSON.parse(localStorage.getItem("sg_agenda") || "[]");
   evts.splice(idx, 1);
   localStorage.setItem("sg_agenda", JSON.stringify(evts));
-  afficherAgenda();
 }
 
 function afficherAgenda() {
   const evts = getAgenda();
   const el = document.getElementById("agenda-val");
   const list = document.getElementById("agenda-list");
+  if (!el) return; // éléments supprimés du HTML
 
   if (evts.length === 0) {
     el.textContent = "Aucun événement à venir";
@@ -2303,7 +2302,6 @@ async function loadAll() {
   const tp = getThemePhoto();
   if (tp) document.getElementById("photo-val").textContent = tp;
   else document.getElementById("row-photo").style.display = "none";
-  afficherAgenda();
 
   // Météo + soleil + carburants + pollen + AQI + vigilance + vigieau (async)
   const [meteo, soleil, carburants, pollen, aqi, vigilance, vigieau] = await Promise.all([
